@@ -35,9 +35,6 @@ The `build.sh` script in the root of the repository accepts the following flags:
 
 # Build kernel:
 ./build.sh kernel
-
-# Build everything at once:
-./build.sh config kernel
 ```
 
 ---
