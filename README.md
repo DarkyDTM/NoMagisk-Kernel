@@ -1,6 +1,6 @@
 # NoMagisk Kernel — ResuKISU for LineageOS
 
-Project to add **ResuKISU** (KernelSU without root by default) into the vanilla LineageOS kernel for **OnePlus 9 Pro (lemonadep, lahaina)**. The documentation was written by Claude AI. Sorry :(
+Project to add **ReSukiSU** (KernelSU without root by default) into the vanilla LineageOS kernel for **OnePlus 9 Pro (lemonadep, lahaina)**. The documentation was written by Claude AI. Sorry :(
 
 ## Dependencies
 
@@ -35,9 +35,6 @@ The `build.sh` script in the root of the repository accepts the following flags:
 
 # Build kernel:
 ./build.sh kernel
-
-# Build everything at once:
-./build.sh config kernel
 ```
 
 ---
