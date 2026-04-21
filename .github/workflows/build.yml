@@ -20,16 +20,34 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             bc bison flex libssl-dev libelf-dev \
-            make python3 \
-            aarch64-linux-gnu-gcc binutils-aarch64-linux-gnu
+            make python3 ccache \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Cache Clang
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: ~/clang
+          key: clang-r416183b
 
       - name: Download Clang
+        if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           mkdir -p $HOME/clang
           wget -q \
             "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
             -O clang.tar.gz
+          file clang.tar.gz
           tar -xf clang.tar.gz -C $HOME/clang
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-
 
       - name: Make defconfig
         run: |
@@ -50,10 +68,13 @@ jobs:
       - name: Build kernel
         run: |
           export PATH="$HOME/clang/bin:$PATH"
+          export CCACHE_DIR=~/.ccache
+          ccache -M 5G
+          ccache -z
           make O=out \
             ARCH=arm64 \
             LLVM=1 LLVM_IAS=1 \
-            CC=$HOME/clang/bin/clang \
+            CC="ccache $HOME/clang/bin/clang" \
             LD=$HOME/clang/bin/ld.lld \
             AR=$HOME/clang/bin/llvm-ar \
             NM=$HOME/clang/bin/llvm-nm \
@@ -62,6 +83,7 @@ jobs:
             STRIP=$HOME/clang/bin/llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             -j$(nproc) Image.gz 2>&1 | tee build.log
+          ccache -s
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
