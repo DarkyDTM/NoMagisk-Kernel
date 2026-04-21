@@ -1,9 +1,24 @@
   GEN     Makefile
+scripts/kconfig/conf  --syncconfig Kconfig
+  GEN     Makefile
+  UPD     include/config/kernel.release
+  UPD     include/generated/utsrelease.h
   CALL    ../scripts/atomic/check-atomics.sh
   CALL    ../scripts/checksyscalls.sh
   CHK     include/generated/compile.h
+  CC      init/version.o
+  CC      kernel/sys.o
+  AR      init/built-in.a
+  CC      drivers/base/firmware_loader/fallback_table.o
+  CC      drivers/base/firmware_loader/main.o
+  CC      drivers/base/firmware_loader/fallback.o
 "QGKI Spectra Camera Building as DLKM"
 "SPECTRA CAMERA IS BUILT AS DLKM"
+  AR      drivers/base/firmware_loader/built-in.a
+  AR      drivers/base/built-in.a
+  CC      kernel/trace/trace.o
+  CC      kernel/module.o
+  UPD     kernel/config_data
   CHK     kernel/kheaders_data.tar.xz
 -- ReSukiSU version code: 34832
 -- ReSukiSU version name: v4.1.0-9cca1f09@ReSukiSU
@@ -38,6 +53,7 @@ grep: ../include/linux/seccomp_types.h: Нет такого файла или к
 -- ReSukiSU/compat: overflow.h found
 -- ReSukiSU/compat: modern proc ns header file found
 -- ReSukiSU/manual_hook: You are using LSM hooks for setuid hooks.
+  GEN     kernel/kheaders_data.tar.xz
 -- ReSukiSU/manual_hook: You are using LSM hooks for init rc hooks.
 -- ReSukiSU/manual_hook: You are using input_handler for input hooks.
 -- ReSukiSU/manual_hook: ksu_handle_execveat found
@@ -48,7 +64,12 @@ grep: ../include/linux/seccomp_types.h: Нет такого файла или к
 -- ReSukiSU/manual_hook: ksu_handle_sys_reboot found
   CC      drivers/kernelsu/core/init.o
   AR      drivers/kernelsu/built-in.a
+  GZIP    kernel/config_data.gz
+  CC      kernel/configs.o
+  AR      kernel/trace/built-in.a
   AR      drivers/built-in.a
+  CC      kernel/kheaders.o
+  AR      kernel/built-in.a
   GEN     .version
   CHK     include/generated/compile.h
   UPD     include/generated/compile.h
