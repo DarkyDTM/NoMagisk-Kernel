@@ -1,20 +1,20 @@
 name: Build Kernel
-
 on:
   push:
     branches: [ lineage-23.2 ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          depth: 1
+          fetch-depth: 0
           submodules: recursive
+
+      - name: Fetch submodule history
+        run: git submodule foreach --recursive 'git fetch --unshallow || true'
 
       - name: Install dependencies
         run: |
@@ -88,7 +88,6 @@ jobs:
       - name: Prepare AnyKernel3 Folder
         run: |
           cp out/arch/arm64/boot/Image.gz tools/anykernel3/
-          
           rm -rf tools/anykernel3/.git
           rm -f tools/anykernel3/*.zip
 
