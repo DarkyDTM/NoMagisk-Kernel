@@ -1,0 +1,72 @@
+name: Build Kernel
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          depth: 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison flex libssl-dev libelf-dev \
+            make python3 \
+            aarch64-linux-gnu-gcc binutils-aarch64-linux-gnu
+
+      - name: Download Clang
+        run: |
+          mkdir -p $HOME/clang
+          wget -q \
+            "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
+            -O clang.tar.gz
+          tar -xf clang.tar.gz -C $HOME/clang
+
+      - name: Make defconfig
+        run: |
+          export PATH="$HOME/clang/bin:$PATH"
+          make O=out \
+            ARCH=arm64 \
+            LLVM=1 LLVM_IAS=1 \
+            CC=$HOME/clang/bin/clang \
+            LD=$HOME/clang/bin/ld.lld \
+            AR=$HOME/clang/bin/llvm-ar \
+            NM=$HOME/clang/bin/llvm-nm \
+            OBJCOPY=$HOME/clang/bin/llvm-objcopy \
+            OBJDUMP=$HOME/clang/bin/llvm-objdump \
+            STRIP=$HOME/clang/bin/llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            vendor/lahaina-qgki_defconfig
+
+      - name: Build kernel
+        run: |
+          export PATH="$HOME/clang/bin:$PATH"
+          make O=out \
+            ARCH=arm64 \
+            LLVM=1 LLVM_IAS=1 \
+            CC=$HOME/clang/bin/clang \
+            LD=$HOME/clang/bin/ld.lld \
+            AR=$HOME/clang/bin/llvm-ar \
+            NM=$HOME/clang/bin/llvm-nm \
+            OBJCOPY=$HOME/clang/bin/llvm-objcopy \
+            OBJDUMP=$HOME/clang/bin/llvm-objdump \
+            STRIP=$HOME/clang/bin/llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            -j$(nproc) Image.gz 2>&1 | tee build.log
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ github.sha }}
+          path: |
+            out/arch/arm64/boot/Image.gz
+            build.log
