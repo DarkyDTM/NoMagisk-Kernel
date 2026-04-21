@@ -38,7 +38,6 @@ jobs:
           wget -q \
             "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
             -O clang.tar.gz
-          file clang.tar.gz
           tar -xf clang.tar.gz -C $HOME/clang
 
       - name: Cache ccache
@@ -86,16 +85,22 @@ jobs:
             -j$(nproc) Image.gz 2>&1 | tee build.log
           ccache -s
 
-      - name: Package with AnyKernel3
+      - name: Prepare AnyKernel3 Folder
         run: |
           cp out/arch/arm64/boot/Image.gz tools/anykernel3/
-          cd tools/anykernel3
-          zip -r9 NoMagiskKernel.zip * -x "*.zip"
+          
+          rm -rf tools/anykernel3/.git
+          rm -f tools/anykernel3/*.zip
 
-      - name: Upload artifacts
+      - name: Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-${{ github.sha }}
-          path: |
-            tools/anykernel3/NoMagiskKernel.zip
-            build.log
+          name: NoMagiskKernel
+          path: tools/anykernel3/*
+          compression-level: 9
+
+      - name: Upload Build Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
