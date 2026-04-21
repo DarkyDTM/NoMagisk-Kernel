@@ -21,7 +21,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             bc bison flex libssl-dev libelf-dev \
-            make python3 ccache \
+            make python3 ccache zip \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
       - name: Cache Clang
@@ -86,10 +86,16 @@ jobs:
             -j$(nproc) Image.gz 2>&1 | tee build.log
           ccache -s
 
+      - name: Package with AnyKernel3
+        run: |
+          cp out/arch/arm64/boot/Image.gz tools/anykernel3/
+          cd tools/anykernel3
+          zip -r9 NoMagiskKernel.zip * -x "*.zip"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kernel-${{ github.sha }}
           path: |
-            out/arch/arm64/boot/Image.gz
+            tools/anykernel3/NoMagiskKernel.zip
             build.log
