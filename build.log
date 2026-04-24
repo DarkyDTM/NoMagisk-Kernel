@@ -1,5 +1,6 @@
   GEN     Makefile
 scripts/kconfig/conf  --syncconfig Kconfig
+<<<<<<< HEAD
   GEN     Makefile
   UPD     include/config/kernel.release
   UPD     include/generated/utsrelease.h
@@ -47,3 +48,5 @@ make[3]: *** [../scripts/Makefile.build:294: drivers/kernelsu/ksu.o] Ошибк�
 make[2]: *** [../scripts/Makefile.build:564: drivers/kernelsu] Ошибка 2
 make[1]: *** [/home/darky/kernel/sukisu_kernel/Makefile:1984: drivers] Ошибка 2
 make[1]: *** Ожидание завершения заданий…
+=======
+>>>>>>> 6c0dd2b8c37a (its test try ok??)

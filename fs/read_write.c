@@ -25,6 +25,10 @@
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
 
+<<<<<<< HEAD
+=======
+// KSU hook
+>>>>>>> 6c0dd2b8c37a (its test try ok??)
 #ifdef CONFIG_KSU
 extern bool ksu_vfs_read_hook __read_mostly;
 extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr, size_t *count_ptr, loff_t **pos);
@@ -452,6 +456,10 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
 
+<<<<<<< HEAD
+=======
+// KSU hook
+>>>>>>> 6c0dd2b8c37a (its test try ok??)
 #ifdef CONFIG_KSU
     if (unlikely(ksu_vfs_read_hook))
         ksu_handle_vfs_read(&file, &buf, &count, &pos);
