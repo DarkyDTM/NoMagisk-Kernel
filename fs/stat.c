@@ -373,7 +373,7 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 
 // KSU hook
 #ifdef CONFIG_KSU_MANUAL_HOOK
-    ksu_handle_newfstat_ret(&fd, &statbuf);
+    ksu_handle_stat(&dfd, &filename, &flag);
 #endif
 
 	error = vfs_fstatat(dfd, filename, &stat, flag);
