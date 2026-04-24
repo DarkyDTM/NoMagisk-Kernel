@@ -26,10 +26,7 @@
 #include "input-compat.h"
 #include "input-poller.h"
 
-<<<<<<< HEAD
-=======
 // KSU hook
->>>>>>> 6c0dd2b8c37a (its test try ok??)
 #ifdef CONFIG_KSU
 extern bool ksu_input_hook __read_mostly;
 extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
@@ -389,10 +386,7 @@ static void input_handle_event(struct input_dev *dev,
 {
 	int disposition = input_get_disposition(dev, type, code, &value);
 
-<<<<<<< HEAD
-=======
 // KSU hook
->>>>>>> 6c0dd2b8c37a (its test try ok??)
 #ifdef CONFIG_KSU
     if (unlikely(ksu_input_hook))
         ksu_handle_input_handle_event(&type, &code, &value);
