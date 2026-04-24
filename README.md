@@ -1,3 +1,44 @@
+# NoMagisk Kernel - SukiSU Ultra for LineageOS
+
+Project to add **SukiSU Ultra** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
+
+## Dependencies
+
+```bash
+sudo apt-get install -y \
+    build-essential bc bison flex git \
+    libssl-dev libelf-dev libncurses-dev \
+    python3 python-is-python3 \
+    zip unzip lz4 zstd pahole \
+    device-tree-compiler ccache
+```
+
+## Toolchain
+
+Clang **r416183b1**:
+
+```bash
+mkdir -p ~/clang
+wget "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
+    -O clang.tar.gz
+tar -xf clang.tar.gz -C ~/clang
+export PATH="$HOME/clang/bin:$PATH"
+```
+
+## Building
+
+The `build.sh` script in the root of the repository accepts the following flags:
+
+```bash
+# Generate defconfig:
+./build.sh config
+
+# Build kernel:
+./build.sh kernel
+```
+
+---
+
 # How do I submit patches to Android Common Kernels
 
 1. BEST: Make all of your changes to upstream Linux. If appropriate, backport to the stable releases.
@@ -69,7 +110,7 @@ instead of `UPSTREAM:`.
         Signed-off-by: Joe Smith <joe.smith@foo.org>
 ```
 
-## Requirements for other backports: `FROMGIT:`, `FROMLIST:`,
+## Requirements for other backports: `FROMGIT:`, `FROMLIST:`
 
 - If the patch has been merged into an upstream maintainer tree, but has not yet
 been merged into Linux mainline
@@ -100,7 +141,6 @@ must be a stable maintainer branch (not rebased, so don't use `linux-next` for e
         Change-Id: I4caaaa566ea080fa148c5e768bb1a0b6f7201c01
         Signed-off-by: Joe Smith <joe.smith@foo.org>
 ```
-
 
 - If the patch has been submitted to LKML, but not accepted into any maintainer tree
     - tag the patch subject with `FROMLIST:`
@@ -141,11 +181,12 @@ must be a stable maintainer branch (not rebased, so don't use `linux-next` for e
     - add a `Bug:` tag with the Android bug (required for android-specific features)
 
 # Vibrator driver for HHG device
+
 ## How to merge the driver into kernel source tree
 
- 1. Copy \${this_project}/drivers/hid/hid-aksys.c into \${your_kernel_root}/drivers/hid/
+ 1. Copy ${this_project}/drivers/hid/hid-aksys.c into ${your_kernel_root}/drivers/hid/
 
- 2. Compare and merge \${this_project}/drivers/hid/hid-ids.h into \${your_kernel_root}/drivers/hid/hid-ids.h :
+ 2. Compare and merge ${this_project}/drivers/hid/hid-ids.h into ${your_kernel_root}/drivers/hid/hid-ids.h :
  Add the following code before the last line of this file
 
     ```c
@@ -154,8 +195,8 @@ must be a stable maintainer branch (not rebased, so don't use `linux-next` for e
 		#define USB_PRODUCT_ID_AKSYS_HHG  0x1000
     ```
 
- 3. Merge \${this_project}/drivers/hid/Kconfig into \${your_kernel_root}/drivers/hid/Kconfig :
-Add the following code before the last line of this file
+ 3. Merge ${this_project}/drivers/hid/Kconfig into ${your_kernel_root}/drivers/hid/Kconfig :
+ Add the following code before the last line of this file
 
 		config HID_AKSYS_QRD
     		tristate "AKSys gamepad USB adapter support"
@@ -170,12 +211,12 @@ Add the following code before the last line of this file
     		---help---
     		Say Y here if you have a AKSys gamepad USB adapter and want to
     		enable force feedback support for it.
-    		
- 4. Merge \${this_project}/drivers/hid/Makefile into \${your_kernel_root}/drivers/hid/Makefile :
+
+ 4. Merge ${this_project}/drivers/hid/Makefile into ${your_kernel_root}/drivers/hid/Makefile :
  Add the following code at the end of this file
 
 		obj-$(CONFIG_HID_AKSYS_QRD)	+= hid-aksys.o
-		
+
  5. Modify your kernel's default build configuration file. Add the following two lines:
 
         CONFIG_HID_AKSYS_QRD=m
