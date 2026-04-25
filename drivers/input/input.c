@@ -26,15 +26,6 @@
 #include "input-compat.h"
 #include "input-poller.h"
 
-<<<<<<< HEAD
-=======
-// KSU hook
-#ifdef CONFIG_KSU
-extern bool ksu_input_hook __read_mostly;
-extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code, int *value);
-#endif
-
->>>>>>> parent of 3b9d071797dc (fix hooks)
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
 MODULE_LICENSE("GPL");
@@ -389,15 +380,6 @@ static void input_handle_event(struct input_dev *dev,
 {
 	int disposition = input_get_disposition(dev, type, code, &value);
 
-<<<<<<< HEAD
-=======
-// KSU hook
-#ifdef CONFIG_KSU
-if (unlikely(ksu_input_hook))
-    ksu_handle_input_handle_event(&type, &code, &value);
-#endif
-
->>>>>>> parent of 3b9d071797dc (fix hooks)
 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
 		add_input_randomness(type, code, value);
 
