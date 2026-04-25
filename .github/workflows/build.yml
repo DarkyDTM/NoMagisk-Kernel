@@ -1,7 +1,7 @@
 name: Build Kernel
 on:
   push:
-    branches: [ lineage-23.2-test ]
+    branches: [ lineage-23.2 ]
   workflow_dispatch:
 
 jobs:
@@ -93,16 +93,16 @@ jobs:
           rm -rf tools/anykernel3/.git
           rm -f tools/anykernel3/*.zip
           cd tools/anykernel3
-          # Generate the .zip artifact in the root of the workspace
-          zip -r9 ../../Kernel-build-${{ github.sha }}.zip ./*
+          # Generate the .zip artifact with the new name in the root of the workspace
+          zip -r9 ../../NoMagisk-Kernel-${{ github.sha }}.zip ./*
 
       - name: Upload Kernel Artifact to GitHub
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NoMagiskKernel
-          # Pick up the zip file generated in the previous step
-          path: Kernel-build-${{ github.sha }}.zip
+          # Pick up the newly named zip file
+          path: NoMagisk-Kernel-${{ github.sha }}.zip
           compression-level: 9
 
       - name: Upload Build Log to GitHub
@@ -116,15 +116,17 @@ jobs:
         if: success()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: "-100123"
+          CHAT_ID: ${{ vars.CHAT_ID }}
         run: |
           DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_HASH=$(git rev-parse --short HEAD)
           REPO_URL="https://github.com/${{ github.repository }}"
+          BRANCH_NAME="${{ github.ref_name }}"
           
           CAPTION="✅ <b>Kernel Build Successful!</b>
           
+          🌿 <b>Branch:</b> <code>$BRANCH_NAME</code>
           📅 <b>Date:</b> $DATE
           📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
           🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
@@ -132,7 +134,7 @@ jobs:
           # Send the exact .zip file generated earlier
           curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
             -F chat_id="$CHAT_ID" \
-            -F document="@Kernel-build-${{ github.sha }}.zip" \
+            -F document="@NoMagisk-Kernel-${{ github.sha }}.zip" \
             -F caption="$CAPTION" \
             -F parse_mode="HTML"
 
@@ -140,15 +142,17 @@ jobs:
         if: failure()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: "-100123"
+          CHAT_ID: ${{ vars.CHAT_ID }}
         run: |
           DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_HASH=$(git rev-parse --short HEAD)
           REPO_URL="https://github.com/${{ github.repository }}"
+          BRANCH_NAME="${{ github.ref_name }}"
           
           CAPTION="❌ <b>Kernel Build Failed!</b>
           
+          🌿 <b>Branch:</b> <code>$BRANCH_NAME</code>
           📅 <b>Date:</b> $DATE
           📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
           🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
