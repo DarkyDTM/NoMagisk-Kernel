@@ -3,6 +3,7 @@ on:
   push:
     branches: [ lineage-23.2-test ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -85,21 +86,87 @@ jobs:
             -j$(nproc) Image.gz 2>&1 | tee build.log
           ccache -s
 
-      - name: Prepare AnyKernel3 Folder
+      - name: Prepare AnyKernel3 Folder & Generate Zip
+        if: success()
         run: |
           cp out/arch/arm64/boot/Image.gz tools/anykernel3/
           rm -rf tools/anykernel3/.git
           rm -f tools/anykernel3/*.zip
+          cd tools/anykernel3
+          # Generate the .zip artifact in the root of the workspace
+          zip -r9 ../../Kernel-build-${{ github.sha }}.zip ./*
 
-      - name: Upload Kernel Artifact
+      - name: Upload Kernel Artifact to GitHub
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NoMagiskKernel
-          path: tools/anykernel3/*
+          # Pick up the zip file generated in the previous step
+          path: Kernel-build-${{ github.sha }}.zip
           compression-level: 9
 
-      - name: Upload Build Log
+      - name: Upload Build Log to GitHub
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: build.log
+
+      - name: Send Telegram Notification (Success)
+        if: success()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: "-100123"
+        run: |
+          DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          REPO_URL="https://github.com/${{ github.repository }}"
+          
+          CAPTION="✅ <b>Kernel Build Successful!</b>
+          
+          📅 <b>Date:</b> $DATE
+          📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
+          🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
+          
+          # Send the exact .zip file generated earlier
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
+            -F chat_id="$CHAT_ID" \
+            -F document="@Kernel-build-${{ github.sha }}.zip" \
+            -F caption="$CAPTION" \
+            -F parse_mode="HTML"
+
+      - name: Send Telegram Notification (Failure)
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: "-100123"
+        run: |
+          DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          REPO_URL="https://github.com/${{ github.repository }}"
+          
+          CAPTION="❌ <b>Kernel Build Failed!</b>
+          
+          📅 <b>Date:</b> $DATE
+          📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
+          🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
+          
+          # Check if build.log exists before sending
+          if [ -f build.log ]; then
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
+              -F chat_id="$CHAT_ID" \
+              -F document="@build.log" \
+              -F caption="$CAPTION
+              
+          The error log is attached to this message." \
+              -F parse_mode="HTML"
+          else
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+              -d chat_id="$CHAT_ID" \
+              -d text="$CAPTION
+              
+          <i>The error log was not created (the error likely occurred before compilation).</i>" \
+              -d parse_mode="HTML"
+          fi
