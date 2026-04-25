@@ -1,7 +1,7 @@
 name: Build Kernel
 on:
   push:
-    branches:[ lineage-23.2 ]
+    branches: [ lineage-23.2 ]
   workflow_dispatch:
 
 jobs:
@@ -101,7 +101,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NoMagiskKernel
-          # Pick up the zip file generated in the previous step
           path: Kernel-build-${{ github.sha }}.zip
           compression-level: 9
 
