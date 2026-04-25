@@ -101,6 +101,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NoMagiskKernel
+          # Pick up the zip file generated in the previous step
           path: Kernel-build-${{ github.sha }}.zip
           compression-level: 9
 
@@ -115,7 +116,7 @@ jobs:
         if: success()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: "-100123"
+          CHAT_ID: ${{ vars.CHAT_ID }}
         run: |
           DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
@@ -139,7 +140,7 @@ jobs:
         if: failure()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: "-100123"
+          CHAT_ID: ${{ vars.CHAT_ID }}
         run: |
           DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
