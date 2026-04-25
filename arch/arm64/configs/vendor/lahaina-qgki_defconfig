@@ -969,6 +969,12 @@ CONFIG_CORESIGHT_TGU=y
 
 # ReSukiSU
 CONFIG_KSU=y
+<<<<<<< HEAD
+=======
+CONFIG_KPROBES=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBE_EVENTS=y
+>>>>>>> parent of 1b57b9e4f19a (idk)
 CONFIG_KSU_SUSFS=n
 
 # -02 compile
