@@ -26,7 +26,7 @@
 #include <linux/seq_file.h>
 
 // KSU hook
-#ifdef CONFIG_KSU
+#ifdef CONFIG_KSU_MANUAL_HOOK
 extern int ksu_handle_devpts(struct inode*);
 #endif
 
@@ -611,7 +611,7 @@ void *devpts_get_priv(struct dentry *dentry)
 {
 
 // KSU hook
-#ifdef CONFIG_KSU
+#ifdef CONFIG_KSU_MANUAL_HOOK
 ksu_handle_devpts(dentry->d_inode);
 #endif
 
