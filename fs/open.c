@@ -35,12 +35,6 @@
 
 #include "internal.h"
 
-// KSU hook
-#ifdef CONFIG_KSU_MANUAL_HOOK
-extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
-			 int *flags);
-#endif
-
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
 {
@@ -359,11 +353,6 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
 	struct inode *inode;
 	int res;
 	unsigned int lookup_flags = LOOKUP_FOLLOW;
-
-// KSU hook
-#ifdef CONFIG_KSU_MANUAL_HOOK
-ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-#endif
 
 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
 		return -EINVAL;
