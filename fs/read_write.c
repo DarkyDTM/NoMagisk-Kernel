@@ -25,6 +25,13 @@
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
 
+// KSU hook
+#ifdef CONFIG_KSU
+extern bool ksu_vfs_read_hook __read_mostly;
+extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+            size_t *count_ptr, loff_t **pos);
+#endif
+
 const struct file_operations generic_ro_fops = {
 	.llseek		= generic_file_llseek,
 	.read_iter	= generic_file_read_iter,
@@ -446,6 +453,13 @@ EXPORT_SYMBOL_NS(kernel_read, ANDROID_GKI_VFS_EXPORT_ONLY);
 ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
+
+// KSU hook
+#ifdef CONFIG_KSU
+extern bool ksu_vfs_read_hook __read_mostly;
+extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
+            size_t *count_ptr, loff_t **pos);
+#endif
 
 	if (!(file->f_mode & FMODE_READ))
 		return -EBADF;
