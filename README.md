@@ -1,6 +1,6 @@
-# NoMagisk Kernel - SukiSU Ultra for LineageOS
+# NoMagisk Kernel - ReSukiSU Ultra for LineageOS
 
-Project to add **SukiSU Ultra** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
+Project to add **ReSukiSU Ultra** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
 
 ## Dependencies
 
