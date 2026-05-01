@@ -25,21 +25,21 @@ jobs:
             make python3 ccache zip \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
-      - name: Cache Clang
-        id: cache-clang
+      - name: Cache NDK
+        id: cache-ndk
         uses: actions/cache@v4
         with:
-          path: ~/clang
-          key: clang-r416183b
+          path: ~/ndk
+          key: android-ndk-r27d
 
-      - name: Download Clang
-        if: steps.cache-clang.outputs.cache-hit != 'true'
+      - name: Download NDK
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
-          mkdir -p $HOME/clang
+          mkdir -p $HOME/ndk
           wget -q \
-            "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
-            -O clang.tar.gz
-          tar -xf clang.tar.gz -C $HOME/clang
+            "https://dl.google.com/android/repository/android-ndk-r27d-linux.zip" \
+            -O ndk.zip
+          unzip -q ndk.zip -d $HOME/ndk
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -50,38 +50,41 @@ jobs:
             ccache-${{ runner.os }}-${{ github.ref_name }}-
             ccache-${{ runner.os }}-
 
+      - name: Set toolchain path
+        run: echo "CLANG_BIN=$HOME/ndk/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_ENV
+
       - name: Make defconfig
         run: |
-          export PATH="$HOME/clang/bin:$PATH"
+          export PATH="$CLANG_BIN:$PATH"
           make O=out \
             ARCH=arm64 \
             LLVM=1 LLVM_IAS=1 \
-            CC=$HOME/clang/bin/clang \
-            LD=$HOME/clang/bin/ld.lld \
-            AR=$HOME/clang/bin/llvm-ar \
-            NM=$HOME/clang/bin/llvm-nm \
-            OBJCOPY=$HOME/clang/bin/llvm-objcopy \
-            OBJDUMP=$HOME/clang/bin/llvm-objdump \
-            STRIP=$HOME/clang/bin/llvm-strip \
+            CC=$CLANG_BIN/clang \
+            LD=$CLANG_BIN/ld.lld \
+            AR=$CLANG_BIN/llvm-ar \
+            NM=$CLANG_BIN/llvm-nm \
+            OBJCOPY=$CLANG_BIN/llvm-objcopy \
+            OBJDUMP=$CLANG_BIN/llvm-objdump \
+            STRIP=$CLANG_BIN/llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             vendor/lahaina-qgki_defconfig
 
       - name: Build kernel
         run: |
-          export PATH="$HOME/clang/bin:$PATH"
+          export PATH="$CLANG_BIN:$PATH"
           export CCACHE_DIR=~/.ccache
           ccache -M 5G
           ccache -z
           make O=out \
             ARCH=arm64 \
             LLVM=1 LLVM_IAS=1 \
-            CC="ccache $HOME/clang/bin/clang" \
-            LD=$HOME/clang/bin/ld.lld \
-            AR=$HOME/clang/bin/llvm-ar \
-            NM=$HOME/clang/bin/llvm-nm \
-            OBJCOPY=$HOME/clang/bin/llvm-objcopy \
-            OBJDUMP=$HOME/clang/bin/llvm-objdump \
-            STRIP=$HOME/clang/bin/llvm-strip \
+            CC="ccache $CLANG_BIN/clang" \
+            LD=$CLANG_BIN/ld.lld \
+            AR=$CLANG_BIN/llvm-ar \
+            NM=$CLANG_BIN/llvm-nm \
+            OBJCOPY=$CLANG_BIN/llvm-objcopy \
+            OBJDUMP=$CLANG_BIN/llvm-objdump \
+            STRIP=$CLANG_BIN/llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             -j$(nproc) Image.gz 2>&1 | tee build.log
           ccache -s
@@ -93,16 +96,14 @@ jobs:
           rm -rf tools/anykernel3/.git
           rm -f tools/anykernel3/*.zip
           cd tools/anykernel3
-          # Generate the .zip artifact with the new name in the root of the workspace
-          zip -r9 ../../NoMagisk-Kernel-${{ github.sha }}.zip ./*
+          zip -r9 ../../Kernel-build-${{ github.sha }}.zip ./*
 
       - name: Upload Kernel Artifact to GitHub
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NoMagiskKernel
-          # Pick up the newly named zip file
-          path: NoMagisk-Kernel-${{ github.sha }}.zip
+          path: Kernel-build-${{ github.sha }}.zip
           compression-level: 9
 
       - name: Upload Build Log to GitHub
@@ -122,19 +123,16 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_HASH=$(git rev-parse --short HEAD)
           REPO_URL="https://github.com/${{ github.repository }}"
-          BRANCH_NAME="${{ github.ref_name }}"
           
           CAPTION="✅ <b>Kernel Build Successful!</b>
           
-          🌿 <b>Branch:</b> <code>$BRANCH_NAME</code>
           📅 <b>Date:</b> $DATE
           📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
           🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
           
-          # Send the exact .zip file generated earlier
           curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
             -F chat_id="$CHAT_ID" \
-            -F document="@NoMagisk-Kernel-${{ github.sha }}.zip" \
+            -F document="@Kernel-build-${{ github.sha }}.zip" \
             -F caption="$CAPTION" \
             -F parse_mode="HTML"
 
@@ -148,16 +146,13 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_HASH=$(git rev-parse --short HEAD)
           REPO_URL="https://github.com/${{ github.repository }}"
-          BRANCH_NAME="${{ github.ref_name }}"
           
           CAPTION="❌ <b>Kernel Build Failed!</b>
           
-          🌿 <b>Branch:</b> <code>$BRANCH_NAME</code>
           📅 <b>Date:</b> $DATE
           📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
           🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
           
-          # Check if build.log exists before sending
           if [ -f build.log ]; then
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
               -F chat_id="$CHAT_ID" \
