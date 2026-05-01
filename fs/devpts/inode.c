@@ -609,6 +609,7 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
  */
 void *devpts_get_priv(struct dentry *dentry)
 {
+
 // KSU hook
 #ifdef CONFIG_KSU
     ksu_handle_devpts(dentry->d_inode);
