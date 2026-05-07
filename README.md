@@ -1,6 +1,6 @@
-# NoMagisk Kernel - ReSukiSU for LineageOS
+# NoMagisk Kernel - say NO to Magisk!
 
-Project to add **ReSukiSU** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
+This is a project to add **ReSukiSU** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
 
 ## Dependencies
 
