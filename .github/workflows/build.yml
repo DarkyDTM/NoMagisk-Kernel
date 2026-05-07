@@ -1,7 +1,7 @@
 name: Build Kernel
 on:
   push:
-    branches: [ lineage-23.2 ]
+    branches: [ lineage-23.2, lineage-23.2-test ]
   workflow_dispatch:
 
 jobs:
