@@ -4,7 +4,7 @@
 #### Usage: build.sh <config/kernel>
 
 OUT_DIR="out"
-DEFCONFIG="vendor/lahaina-qgki_defconfig"
+DEFCONFIG="nomagisk_defconfig"
 LOG_FILE="build.log"
 THREADS=$(nproc --all)
 
