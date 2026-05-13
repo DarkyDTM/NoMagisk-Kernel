@@ -38,7 +38,7 @@ MAKE_FLAGS=(
     OBJDUMP=llvm-objdump
     STRIP=llvm-strip
     CLANG_TRIPLE=aarch64-linux-gnu-
-    LOCALVERSION=$MY_LOCALVERSION
+    LOCALVERSION=$EXTRAVERSION
 )
 
 usage() {
