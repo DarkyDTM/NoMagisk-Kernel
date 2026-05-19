@@ -51,12 +51,11 @@ jobs:
           export CCACHE_DIR=~/.ccache
           ccache -M 5G
           chmod +x build.sh
+
+          START=$(date +%s)
+          trap 'echo "BUILD_TIME=$(( $(date +%s) - START ))" >> $GITHUB_ENV' EXIT
           ./build.sh config 2>&1 | tee build.log
           ./build.sh kernel 2>&1 | tee build.log
-
-      - name: Record build time
-        if: always()
-        run: echo "BUILD_TIME=$SECONDS" >> $GITHUB_ENV
 
       - name: Pack AnyKernel3 zip
         if: success()
