@@ -8,22 +8,14 @@ DEFCONFIG="nomagisk_defconfig"
 LOG_FILE="build.log"
 THREADS=$(nproc --all)
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT=$(git rev-parse --short HEAD)
 
-case "$BRANCH" in
-    "lineage-23.2")
-        BRANCH="stable"
-        ;;
-    "lineage-23.2-test")
-        BRANCH="unstable"
-        ;;
-    *)
-        BRANCH="unknown"
-        ;;
+case "$RAW_BRANCH" in
+    lineage-23.2)      BRANCH="stable" ;;
+    lineage-23.2-test) BRANCH="unstable" ;;
+    *)                 BRANCH="unknown" ;;
 esac
-
-EXTRAVERSION="-${BRANCH}-${COMMIT}"
 
 MAKE_FLAGS=(
     O=$OUT_DIR
@@ -38,7 +30,7 @@ MAKE_FLAGS=(
     OBJDUMP=llvm-objdump
     STRIP=llvm-strip
     CLANG_TRIPLE=aarch64-linux-gnu-
-    LOCALVERSION=$EXTRAVERSION
+    LOCALVERSION="-${BRANCH}-${COMMIT}"
 )
 
 usage() {
@@ -46,39 +38,36 @@ usage() {
     exit 1
 }
 
-if [ -z "$1" ]; then
-    usage
-fi
+[ -z "$1" ] && usage
 
 mkdir -p $OUT_DIR
 
 case "$1" in
-    "config")
+    config)
         echo "Setting up: $DEFCONFIG"
         make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
         ;;
-        
-    "kernel")
-        echo "Build started using $THREADS threads"
-        START=$(date +%s)
 
+    kernel)
         if [ ! -f "$OUT_DIR/.config" ]; then
-            echo "Config not found! Running 'make $DEFCONFIG' first..."
+            echo "Config not found, running defconfig first..."
             make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
         fi
+
+        echo "Build started using $THREADS threads"
+        START=$(date +%s)
 
         make "${MAKE_FLAGS[@]}" -j"$THREADS" Image.gz 2>&1 | tee "$LOG_FILE"
 
         if [ ${PIPESTATUS[0]} -eq 0 ]; then
-            END=$(date +%s)
-            DIFF=$((END - START))
-            echo "Success! Duration: $((DIFF / 60))m $((DIFF % 60))s"
+            DIFF=$(( $(date +%s) - START ))
+            echo "Done! Took $((DIFF / 60))m $((DIFF % 60))s"
         else
-            echo "Build failed! Check $LOG_FILE"
+            echo "Build failed, check $LOG_FILE"
             exit 1
         fi
         ;;
-        
+
     *)
         usage
         ;;
