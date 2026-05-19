@@ -2,6 +2,9 @@
 
 Project to add **ReSukiSU** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
 
+## Warning
+Installing kernels older than 1.8.5 causes bootloop in the system and recovery due to upstream updates
+
 ## Dependencies
 
 ```bash
