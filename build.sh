@@ -1,8 +1,5 @@
 #!/bin/bash
 
-### Made by github.com/darkydtm. Do not confuse with the original instrument
-#### Usage: build.sh <config/kernel>
-
 OUT_DIR="out"
 DEFCONFIG="nomagisk_defconfig"
 LOG_FILE="build.log"
@@ -34,7 +31,7 @@ MAKE_FLAGS=(
 )
 
 usage() {
-    echo "Usage: $0 <config|kernel>"
+    echo "Usage: $0 <config [base_defconfig] [extra1.config ...] | kernel>"
     exit 1
 }
 
@@ -44,8 +41,42 @@ mkdir -p $OUT_DIR
 
 case "$1" in
     config)
-        echo "Setting up: $DEFCONFIG"
-        make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
+        shift
+        if [ $# -gt 0 ]; then
+            BASE_CONFIG="$1"
+            shift
+            EXTRA_CONFIGS=("$@")
+        else
+            BASE_CONFIG="$DEFCONFIG"
+            EXTRA_CONFIGS=()
+        fi
+
+        if [ ! -f "arch/arm64/configs/$BASE_CONFIG" ]; then
+            echo "Error: Base config arch/arm64/configs/$BASE_CONFIG not found!"
+            exit 1
+        fi
+
+        if [ ${#EXTRA_CONFIGS[@]} -eq 0 ]; then
+            echo "Setting up single config: $BASE_CONFIG"
+            make "${MAKE_FLAGS[@]}" "$BASE_CONFIG"
+        else
+            echo "Merging configs..."
+            echo "Base: $BASE_CONFIG"
+            echo "Fragments: ${EXTRA_CONFIGS[*]}"
+            
+            ARCH=arm64 \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CC=clang \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            ./scripts/kconfig/merge_config.sh -O "$OUT_DIR" "arch/arm64/configs/$BASE_CONFIG" "${EXTRA_CONFIGS[@]}"
+        fi
         ;;
 
     kernel)

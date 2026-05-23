@@ -54,7 +54,8 @@ jobs:
 
           START=$(date +%s)
           trap 'echo "BUILD_TIME=$(( $(date +%s) - START ))" >> $GITHUB_ENV' EXIT
-          ./build.sh config 2>&1 | tee build.log
+          
+          ./build.sh config nomagisk_defconfig kernelsu.config 2>&1 | tee build.log
           ./build.sh kernel 2>&1 | tee build.log
 
       - name: Pack AnyKernel3 zip
@@ -130,13 +131,13 @@ jobs:
               -F document="@build.log" \
               -F caption="$CAPTION
 
-          Лог ошибки прикреплён." \
+          Error log attached." \
               -F parse_mode="HTML"
           else
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
               -d chat_id="$CHAT_ID" \
               -d text="$CAPTION
 
-          <i>Лог не был создан — ошибка возникла до начала компиляции.</i>" \
+          <i>Log was not created - error occurred before compilation started.</i>" \
               -d parse_mode="HTML"
           fi
