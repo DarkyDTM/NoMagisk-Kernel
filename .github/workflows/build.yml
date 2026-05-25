@@ -52,6 +52,8 @@ jobs:
           ccache -M 5G
           chmod +x build.sh
 
+          export srctree=$(pwd)
+
           START=$(date +%s)
           trap 'echo "BUILD_TIME=$(( $(date +%s) - START ))" >> $GITHUB_ENV' EXIT
           
