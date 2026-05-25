@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make python3 ccache zip gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make python3 ccache zip gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu rsync
 
       - name: Cache Clang
         id: cache-clang
