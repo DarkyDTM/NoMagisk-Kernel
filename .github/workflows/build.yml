@@ -52,7 +52,7 @@ jobs:
           ccache -M 5G
 
       - name: Build config
-        run: ./build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/nomagisk_defconfig 2>&1 | tee build.log
+        run: ./build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
 
       - name: Build kernel
         run: ./build.sh kernel 2>&1 | tee -a build.log
