@@ -59,8 +59,3 @@ CONFIG_EROFS_FS_XATTR=y
 
 # Disable crash dump
 CONFIG_CRASH_DUMP=n
-
-# Debug optimization
-# CONFIG_SLUB_DEBUG is not set
-# CONFIG_DEBUG_MISC is not set
-# CONFIG_SCHED_DEBUG is not set
