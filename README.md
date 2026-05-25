@@ -40,7 +40,8 @@ The `script.sh` script in the tools/ directory of the repository root accepts th
 ./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig
 
 # Build kernel:
-./tools/build.sh kernel```
+./tools/build.sh kernel
+```
 
 ---
 
