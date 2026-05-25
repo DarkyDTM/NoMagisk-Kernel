@@ -34,13 +34,13 @@ The `script.sh` script in the tools/ directory of the repository root accepts th
 
 ```bash
 # Generate configuration (requires base defconfig, e.g. vendor/lahaina-qgki_defconfig):
-./tools/build.sh config vendor/lahaina-qgki_defconfig
+tools/build.sh config vendor/lahaina-qgki_defconfig
 
 # Or generate with a config fragment (merge):
-./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig
+tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig
 
 # Build kernel:
-./tools/build.sh kernel
+tools/build.sh kernel
 ```
 
 ---
