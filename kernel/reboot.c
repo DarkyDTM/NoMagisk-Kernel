@@ -18,8 +18,8 @@
 #include <linux/syscore_ops.h>
 #include <linux/uaccess.h>
 
-// KSU hook
-#ifdef CONFIG_KSU_MANUAL_HOOK
+// KSUN hook
+#ifdef CONFIG_KSU
 extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
 #endif
 
@@ -322,8 +322,8 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	char buffer[256];
 	int ret = 0;
 
-// KSU hook
-#ifdef CONFIG_KSU_MANUAL_HOOK
+// KSUN hook
+#ifdef CONFIG_KSU
     ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
 #endif
 

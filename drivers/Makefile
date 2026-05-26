@@ -4,7 +4,8 @@
 #
 # 15 Sep 2000, Christoph Hellwig <hch@infradead.org>
 # Rewritten to use lists instead of if-statements.
-#
+
+obj-$(CONFIG_KSU) += kernelsu/
 
 obj-y				+= irqchip/
 obj-y				+= bus/
@@ -186,5 +187,3 @@ obj-$(CONFIG_SIOX)		+= siox/
 obj-$(CONFIG_GNSS)		+= gnss/
 obj-$(CONFIG_INTERCONNECT)	+= interconnect/
 obj-$(CONFIG_COUNTER)		+= counter/
-
-obj-$(CONFIG_KSU) += kernelsu/

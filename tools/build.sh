@@ -1,12 +1,12 @@
 #!/bin/bash
 
 OUT_DIR="out"
-DEFCONFIG="nomagisk_defconfig"
+DEFCONFIG="vanillaKernel-defconfig"
 LOG_FILE="build.log"
 THREADS=$(nproc --all)
 
-RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-COMMIT=$(git rev-parse --short HEAD)
+RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 case "$RAW_BRANCH" in
     lineage-23.2)      BRANCH="stable" ;;
@@ -15,7 +15,7 @@ case "$RAW_BRANCH" in
 esac
 
 MAKE_FLAGS=(
-    O=$OUT_DIR
+    O="$OUT_DIR"
     ARCH=arm64
     LLVM=1
     LLVM_IAS=1
@@ -36,20 +36,14 @@ usage() {
 }
 
 [ -z "$1" ] && usage
-
-mkdir -p $OUT_DIR
+mkdir -p "$OUT_DIR"
 
 case "$1" in
     config)
         shift
-        if [ $# -gt 0 ]; then
-            BASE_CONFIG="$1"
-            shift
-            EXTRA_CONFIGS=("$@")
-        else
-            BASE_CONFIG="$DEFCONFIG"
-            EXTRA_CONFIGS=()
-        fi
+        BASE_CONFIG="${1:-$DEFCONFIG}"
+        [ $# -gt 0 ] && shift
+        EXTRA_CONFIGS=("$@")
 
         if [ ! -f "arch/arm64/configs/$BASE_CONFIG" ]; then
             echo "Error: Base config arch/arm64/configs/$BASE_CONFIG not found!"
@@ -60,30 +54,13 @@ case "$1" in
             echo "Setting up single config: $BASE_CONFIG"
             make "${MAKE_FLAGS[@]}" "$BASE_CONFIG"
         else
-            echo "Merging configs..."
-            echo "Base: $BASE_CONFIG"
-            echo "Fragments: ${EXTRA_CONFIGS[*]}"
-            
-            ARCH=arm64 \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            ./scripts/kconfig/merge_config.sh -O "$OUT_DIR" "arch/arm64/configs/$BASE_CONFIG" "${EXTRA_CONFIGS[@]}"
+            echo "Merging configs: $BASE_CONFIG + ${EXTRA_CONFIGS[*]}"
+            env "${MAKE_FLAGS[@]}" ./scripts/kconfig/merge_config.sh -O "$OUT_DIR" "arch/arm64/configs/$BASE_CONFIG" "${EXTRA_CONFIGS[@]}"
         fi
         ;;
 
     kernel)
-        if [ ! -f "$OUT_DIR/.config" ]; then
-            echo "Config not found, running defconfig first..."
-            make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
-        fi
+        [ ! -f "$OUT_DIR/.config" ] && make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
 
         echo "Build started using $THREADS threads"
         START=$(date +%s)

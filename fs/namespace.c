@@ -1739,6 +1739,23 @@ out:
 	return retval;
 }
 
+SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
+{
+	return ksys_umount(name, flags);
+}
+
+#ifdef __ARCH_WANT_SYS_OLDUMOUNT
+
+/*
+ *	The 2.0 compatible umount. No flags.
+ */
+SYSCALL_DEFINE1(oldumount, char __user *, name)
+{
+	return ksys_umount(name, 0);
+}
+
+#endif
+
 static int can_umount(const struct path *path, int flags)
 {
 	struct mount *mnt = real_mount(path->mnt);
@@ -1766,31 +1783,11 @@ int path_umount(struct path *path, int flags)
 	ret = can_umount(path, flags);
 	if (!ret)
 		ret = do_umount(mnt, flags);
-
-	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
 	dput(path->dentry);
 	mntput_no_expire(mnt);
 	return ret;
 }
-
-EXPORT_SYMBOL_GPL(path_umount);
-
-SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
-{
-	return ksys_umount(name, flags);
-}
-
-#ifdef __ARCH_WANT_SYS_OLDUMOUNT
-
-/*
- *	The 2.0 compatible umount. No flags.
- */
-SYSCALL_DEFINE1(oldumount, char __user *, name)
-{
-	return ksys_umount(name, 0);
-}
-
-#endif
+EXPORT_SYMBOL(path_umount);
 
 static bool is_mnt_ns_file(struct dentry *dentry)
 {

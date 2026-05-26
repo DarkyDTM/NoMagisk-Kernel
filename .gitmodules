@@ -1,4 +1,4 @@
-[submodule "KernelSU"]
-	path = KernelSU
-	url = https://github.com/ReSukiSU/ReSukiSU
-	branch = main
+[submodule "KernelSU-Next"]
+	path = KernelSU-Next
+	url = https://github.com/KernelSU-Next/KernelSU-Next.git
+	branch = legacy

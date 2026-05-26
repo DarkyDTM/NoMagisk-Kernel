@@ -7,37 +7,34 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      REPO_URL: https://github.com/${{ github.repository }}
+      CCACHE_DIR: /home/runner/.ccache
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Fetch submodule history
-        run: git submodule foreach --recursive 'git fetch --unshallow || true'
-
-      - name: Install dependencies
+      - name: Initialize environment
         run: |
+          git submodule foreach --recursive 'git fetch --unshallow || true'
           sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make python3 ccache zip gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make python3 ccache zip gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu rsync
 
-      - name: Cache Clang
+      - uses: actions/cache@v4
         id: cache-clang
-        uses: actions/cache@v4
         with:
           path: ~/clang
           key: clang-r416183b
 
-      - name: Download Clang
+      - name: Fetch Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          mkdir -p $HOME/clang
-          wget -q "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" -O clang.tar.gz
-          tar -xf clang.tar.gz -C $HOME/clang
+          mkdir -p ~/clang
+          curl -sSL "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" | tar -xz -C ~/clang
 
-      - name: Cache ccache
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: ~/.ccache
           key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
@@ -45,99 +42,90 @@ jobs:
             ccache-${{ runner.os }}-${{ github.ref_name }}-
             ccache-${{ runner.os }}-
 
-      - name: Build
+      - name: Prepare build
         run: |
-          export PATH="$HOME/clang/bin:$PATH"
-          export CCACHE_DIR=~/.ccache
+          echo "$HOME/clang/bin" >> $GITHUB_PATH
+          echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+          echo "COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)" >> $GITHUB_ENV
+          echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          chmod +x tools/build.sh
           ccache -M 5G
-          chmod +x build.sh
 
-          START=$(date +%s)
-          trap 'echo "BUILD_TIME=$(( $(date +%s) - START ))" >> $GITHUB_ENV' EXIT
-          
-          ./build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/nomagisk_defconfig 2>&1 | tee build.log
-          ./build.sh kernel 2>&1 | tee build.log
+      - name: Build config
+        run: |
+          set -o pipefail
+          ./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
 
-      - name: Pack AnyKernel3 zip
+      - name: Build kernel
+        run: |
+          set -o pipefail
+          ./tools/build.sh kernel 2>&1 | tee -a build.log
+
+      - name: Pack release
         if: success()
         run: |
-          cp out/arch/arm64/boot/Image.gz tools/anykernel3/ 2>/dev/null || cp arch/arm64/boot/Image.gz tools/anykernel3/
-          rm -rf tools/anykernel3/.git tools/anykernel3/*.zip
+          find out/arch/arm64/boot arch/arm64/boot -name "Image.gz" -exec cp {} tools/anykernel3/ \; -quit 2>/dev/null || true
           cd tools/anykernel3
+          rm -rf .git *.zip
           zip -r9 ../../Kernel-build-${{ github.sha }}.zip ./*
 
-      - name: Upload kernel zip
+      - uses: actions/upload-artifact@v4
         if: success()
-        uses: actions/upload-artifact@v4
         with:
           name: NoMagickKernel
           path: Kernel-build-${{ github.sha }}.zip
           compression-level: 9
 
-      - name: Upload build log
+      - uses: actions/upload-artifact@v4
         if: failure()
-        uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: build.log
 
-      - name: Telegram — success
-        if: success()
+      - name: Notify Telegram
+        if: always()
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ vars.CHAT_ID }}
+          STATUS: ${{ job.status }}
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          REPO_URL="https://github.com/${{ github.repository }}"
-          BUILD_MINS=$(( BUILD_TIME / 60 ))
-          BUILD_SECS=$(( BUILD_TIME % 60 ))
+          DURATION=$(( $(date +%s) - START_TIME ))
+          MINS=$(( DURATION / 60 ))
+          SECS=$(( DURATION % 60 ))
 
-          CAPTION="✅ <b>Kernel Build Successful!</b>
+          if [ "$STATUS" = "success" ]; then
+            ICON="✅"
+            STATE="Successful"
+            DOC="-F document=@Kernel-build-${{ github.sha }}.zip"
+            EXTRA=""
+          else
+            ICON="❌"
+            STATE="Failed"
+            if [ -f build.log ]; then
+              DOC="-F document=@build.log"
+              EXTRA=$'\n\nError log attached.'
+            else
+              DOC=""
+              EXTRA=$'\n\n<i>Log missing - failed before compilation.</i>'
+            fi
+          fi
+
+          CAPTION="$ICON <b>Kernel Build $STATE!</b>
 
           🌿 <b>Branch:</b> <code>${{ github.ref_name }}</code>
-          ⏱ <b>Build time:</b> ${BUILD_MINS}m ${BUILD_SECS}s
+          ⏱ <b>Time:</b> ${MINS}m ${SECS}s
           📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
-          🔢 <b>Commit hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
+          🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>$EXTRA"
 
-          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
-            -F chat_id="$CHAT_ID" \
-            -F document="@Kernel-build-${{ github.sha }}.zip" \
-            -F caption="$CAPTION" \
-            -F parse_mode="HTML"
-
-      - name: Telegram — failure
-        if: failure()
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ vars.CHAT_ID }}
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          REPO_URL="https://github.com/${{ github.repository }}"
-          BUILD_MINS=$(( BUILD_TIME / 60 ))
-          BUILD_SECS=$(( BUILD_TIME % 60 ))
-
-          CAPTION="❌ <b>Kernel Build Failed!</b>
-
-          🌿 <b>Branch:</b> <code>${{ github.ref_name }}</code>
-          ⏱ <b>Build time:</b> ${BUILD_MINS}m ${BUILD_SECS}s
-          📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
-          🔢 <b>Commit hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>"
-
-          if [ -f build.log ]; then
+          if [ -n "$DOC" ]; then
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
               -F chat_id="$CHAT_ID" \
-              -F document="@build.log" \
-              -F caption="$CAPTION
-
-          Error log attached." \
+              $DOC \
+              -F caption="$CAPTION" \
               -F parse_mode="HTML"
           else
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
               -d chat_id="$CHAT_ID" \
-              -d text="$CAPTION
-
-          <i>Log was not created - error occurred before compilation started.</i>" \
+              -d text="$CAPTION" \
               -d parse_mode="HTML"
           fi

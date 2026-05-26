@@ -30,14 +30,17 @@ export PATH="$HOME/clang/bin:$PATH"
 
 ## Building
 
-The `build.sh` script in the root of the repository accepts the following flags:
+The `script.sh` script in the tools/ directory of the repository root accepts the following flags:
 
 ```bash
-# Generate defconfig:
-./build.sh config
+# Generate configuration (requires base defconfig, e.g. vendor/lahaina-qgki_defconfig):
+tools/build.sh config vendor/lahaina-qgki_defconfig
+
+# Or generate with a config fragment (merge):
+tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig
 
 # Build kernel:
-./build.sh kernel
+tools/build.sh kernel
 ```
 
 ---
