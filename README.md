@@ -1,7 +1,7 @@
 ![Banner](banner.png)
 # Vanilla Kernel - Magiskless experience
 
-Project to add **KernelSU** Next to **LineageOS** without losing vanilla for **OnePlus 9 Pro**
+Project to add **KernelSU-Next** and **useful patches** to **LineageOS** without losing vanilla for OnePlus 9 Pro
 
 ## Warning
 Installing kernels older than 1.8.5 causes bootloop in the system and recovery due to upstream updates
