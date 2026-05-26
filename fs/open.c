@@ -35,13 +35,6 @@
 
 #include "internal.h"
 
-// KSUN hook
-#ifdef CONFIG_KSU
-__attribute__((hot))
-extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
-                int *mode, int *flags);
-#endif
-
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
 {
@@ -449,11 +442,6 @@ out:
 
 SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
 {
-
-// KSUN hook
-#ifdef CONFIG_KSU
-    ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-#endif
 
 	return do_faccessat(dfd, filename, mode);
 }
