@@ -1,6 +1,7 @@
-# NoMagisk Kernel - ReSukiSU for LineageOS
+![Banner](banner.png)
+# Vanilla Kernel - Magiskless experience
 
-Project to add **ReSukiSU** (KernelSU fork) into the vanilla LineageOS kernel for **OnePlus 9 Pro**.
+Project to add **KernelSU** Next to **LineageOS** without losing vanilla for **OnePlus 9 Pro**
 
 ## Warning
 Installing kernels older than 1.8.5 causes bootloop in the system and recovery due to upstream updates
@@ -227,3 +228,4 @@ must be a stable maintainer branch (not rebased, so don't use `linux-next` for e
 
         CONFIG_HID_AKSYS_QRD=m
         CONFIG_AKSYS_QRD_FF=y
+
