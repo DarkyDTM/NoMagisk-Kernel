@@ -54,7 +54,7 @@ jobs:
       - name: Build config
         run: |
           set -o pipefail
-          ./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
+          ./tools/build.sh config vendor/lahaina-gki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
 
       - name: Build kernel
         run: |
