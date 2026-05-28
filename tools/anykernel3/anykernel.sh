@@ -1,6 +1,6 @@
 # AnyKernel3 for OnePlus 9 Pro (lemonadep) - lahaina
 properties() { '
-kernel.string=NoMagisk kernel for OnePlus 9 Pro
+kernel.string=Vanilla kernel for OnePlus 9 Pro
 do.devicecheck=1
 do.modules=0
 do.systemless=1
