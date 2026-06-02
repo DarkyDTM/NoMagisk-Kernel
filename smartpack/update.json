@@ -1,0 +1,13 @@
+{
+  "kernel": {
+    "name": "VanillaKernel",
+    "version": "2.1.1",
+    "link": "Stub",
+    "changelog_url": "Stub",
+    "sha1": "Stub"
+  },
+  "support": {
+    "link": "Stub",
+    "donation": "None"
+  }
+}
