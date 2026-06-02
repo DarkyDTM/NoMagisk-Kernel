@@ -2,7 +2,7 @@
   "kernel": {
     "name": "VanillaKernel",
     "version": "2.1.2",
-    "link": "https://github.com/DarkyDTM/VanillaKernel/releases/tag/2.1.2",
+    "link": "https://github.com/DarkyDTM/VanillaKernel/releases/download/2.1.2/VanillaKernel-2.1.2.zip",
     "changelog_url": "https://github.com/DarkyDTM/VanillaKernel/compare/1.7...2.1.2",
     "sha1": "2c2ab7d4cd249739bf9f0535f27010b343ab6cb0"
   },
