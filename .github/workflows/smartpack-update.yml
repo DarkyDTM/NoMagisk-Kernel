@@ -22,20 +22,34 @@ jobs:
       - name: Prepare variables
         id: vars
         env:
-          RELEASE_BODY: ${{ github.event.release.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.release.tag_name }}"
+          RELEASE_BODY="${{ github.event.release.body }}"
+          RELEASE_URL="${{ github.event.release.html_url }}"
+
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view --json tagName -q .tagName)
+            RELEASE_BODY=$(gh release view --json body -q .body)
+            RELEASE_URL=$(gh release view --json url -q .url)
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "Error: No release found in the repository!"
+            exit 1
+          fi
 
           VERSION="${TAG#v}"
 
+          echo "tag=${TAG}"                                                >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}"                                        >> "$GITHUB_OUTPUT"
-          echo "release_url=${{ github.event.release.html_url }}"         >> "$GITHUB_OUTPUT"
-          echo "repo_url=https://github.com/${{ github.repository }}"     >> "$GITHUB_OUTPUT"
+          echo "release_url=${RELEASE_URL}"                                >> "$GITHUB_OUTPUT"
+          echo "repo_url=https://github.com/${{ github.repository }}"      >> "$GITHUB_OUTPUT"
 
           CHANGELOG_URL=$(printf '%s' "$RELEASE_BODY" \
             | grep -oP 'https?://[^\s)\]"<>]+' \
             | head -1)
-          CHANGELOG_URL="${CHANGELOG_URL:-${{ github.event.release.html_url }}}"
+          CHANGELOG_URL="${CHANGELOG_URL:-${RELEASE_URL}}"
 
           echo "changelog_url=${CHANGELOG_URL}" >> "$GITHUB_OUTPUT"
 
@@ -44,12 +58,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG="${{ steps.vars.outputs.tag }}"
           VERSION="${{ steps.vars.outputs.version }}"
           ARTIFACT="VanillaKernel-${VERSION}.zip"
 
-          echo "Looking for asset: ${ARTIFACT}"
+          echo "Looking for asset: ${ARTIFACT} in release: ${TAG}"
 
-          gh release download "${{ github.event.release.tag_name }}" \
+          gh release download "${TAG}" \
             --repo "${{ github.repository }}" \
             --pattern "${ARTIFACT}" \
             --dir /tmp
@@ -67,7 +82,7 @@ jobs:
             --arg sha1         "${{ steps.asset.outputs.sha1 }}"         \
             --arg support_link "${{ steps.vars.outputs.repo_url }}"      \
             '
-              .kernel.version       = $version      |
+              .kernel.version       = $version       |
               .kernel.link          = $link          |
               .kernel.changelog_url = $changelog     |
               .kernel.sha1          = $sha1          |
@@ -88,6 +103,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "update.json is already up-to-date, nothing to commit."
           else
-            git commit -m "chore: update smartpack/update.json for release ${{ github.event.release.tag_name }}"
+            git commit -m "chore: update smartpack/update.json for release ${{ steps.vars.outputs.tag }}"
             git push
           fi
