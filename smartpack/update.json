@@ -1,13 +1,13 @@
 {
   "kernel": {
     "name": "VanillaKernel",
-    "version": "2.1.1",
-    "link": "Stub",
-    "changelog_url": "Stub",
-    "sha1": "Stub"
+    "version": "2.1.2",
+    "link": "https://github.com/DarkyDTM/VanillaKernel/releases/tag/2.1.2",
+    "changelog_url": "https://github.com/DarkyDTM/VanillaKernel/compare/1.7...2.1.2",
+    "sha1": "2c2ab7d4cd249739bf9f0535f27010b343ab6cb0"
   },
   "support": {
-    "link": "Stub",
+    "link": "https://github.com/DarkyDTM/VanillaKernel",
     "donation": "https://tronscan.org/#/address/TXk6NixEE6uTHh56hys3daNudNPEuakLUB"
   }
 }
