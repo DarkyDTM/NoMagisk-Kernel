@@ -10,6 +10,7 @@ jobs:
     env:
       REPO_URL: https://github.com/${{ github.repository }}
       CCACHE_DIR: /home/runner/.ccache
+      ARTIFACT: VanillaKernel-${{ github.sha }}.zip
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,13 +68,13 @@ jobs:
           find out/arch/arm64/boot arch/arm64/boot -name "Image.gz" -exec cp {} tools/anykernel3/ \; -quit 2>/dev/null || true
           cd tools/anykernel3
           rm -rf .git *.zip
-          zip -r9 ../../Kernel-build-${{ github.sha }}.zip ./*
+          zip -r9 "../../$ARTIFACT" ./*
 
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: NoMagickKernel
-          path: Kernel-build-${{ github.sha }}.zip
+          name: VanillaKernel
+          path: ${{ env.ARTIFACT }}
           compression-level: 9
 
       - uses: actions/upload-artifact@v4
@@ -96,7 +97,7 @@ jobs:
           if [ "$STATUS" = "success" ]; then
             ICON="✅"
             STATE="Successful"
-            DOC="-F document=@Kernel-build-${{ github.sha }}.zip"
+            DOC="-F document=@$ARTIFACT"
             EXTRA=""
           else
             ICON="❌"
