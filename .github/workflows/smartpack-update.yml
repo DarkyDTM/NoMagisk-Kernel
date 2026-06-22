@@ -45,6 +45,7 @@ jobs:
 
           echo "tag=${TAG}"                                                >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}"                                        >> "$GITHUB_OUTPUT"
+          echo "artifact=${ARTIFACT}"                                      >> "$GITHUB_OUTPUT"
           echo "download_url=${DOWNLOAD_URL}"                              >> "$GITHUB_OUTPUT"
           echo "repo_url=https://github.com/${{ github.repository }}"      >> "$GITHUB_OUTPUT"
 
@@ -61,8 +62,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
-          VERSION="${{ steps.vars.outputs.version }}"
-          ARTIFACT="VanillaKernel-${VERSION}.zip"
+          ARTIFACT="${{ steps.vars.outputs.artifact }}"
 
           echo "Looking for asset: ${ARTIFACT} in release: ${TAG}"
 
