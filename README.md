@@ -19,11 +19,11 @@ sudo apt-get install -y \
 
 ## Toolchain
 
-Clang **r416183b1**:
+Clang **r416183b**:
 
 ```bash
 mkdir -p ~/clang
-wget "https://android.googlesource.com/platform//prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
+wget "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" \
     -O clang.tar.gz
 tar -xf clang.tar.gz -C ~/clang
 export PATH="$HOME/clang/bin:$PATH"
@@ -31,7 +31,7 @@ export PATH="$HOME/clang/bin:$PATH"
 
 ## Building
 
-The `script.sh` script in the tools/ directory of the repository root accepts the following flags:
+The `build.sh` script in the tools/ directory accepts the following commands:
 
 ```bash
 # Generate configuration (requires base defconfig, e.g. vendor/lahaina-qgki_defconfig):
