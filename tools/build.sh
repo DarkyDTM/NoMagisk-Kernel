@@ -10,6 +10,13 @@ THREADS=$(nproc --all)
 RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
+# Route clang through ccache when it is available to speed up rebuilds
+if command -v ccache >/dev/null 2>&1; then
+    CC_WRAPPER="ccache "
+else
+    CC_WRAPPER=""
+fi
+
 case "$RAW_BRANCH" in
     lineage-23.2)      BRANCH="stable" ;;
     lineage-23.2-test) BRANCH="unstable" ;;
@@ -21,7 +28,7 @@ MAKE_FLAGS=(
     ARCH=arm64
     LLVM=1
     LLVM_IAS=1
-    CC=clang
+    CC="${CC_WRAPPER}clang"
     LD=ld.lld
     AR=llvm-ar
     NM=llvm-nm

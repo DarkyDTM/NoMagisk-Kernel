@@ -61,6 +61,7 @@ jobs:
         run: |
           set -o pipefail
           ./tools/build.sh kernel 2>&1 | tee -a build.log
+          ccache -s
 
       - name: Pack release
         if: success()
