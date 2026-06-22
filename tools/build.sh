@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 OUT_DIR="out"
 DEFCONFIG="vanillaKernel-defconfig"
 LOG_FILE="build.log"
@@ -35,14 +37,21 @@ usage() {
     exit 1
 }
 
-[ -z "$1" ] && usage
+if [ $# -eq 0 ]; then
+    usage
+fi
+
 mkdir -p "$OUT_DIR"
 
 case "$1" in
     config)
         shift
-        BASE_CONFIG="${1:-$DEFCONFIG}"
-        [ $# -gt 0 ] && shift
+        if [ $# -gt 0 ]; then
+            BASE_CONFIG="$1"
+            shift
+        else
+            BASE_CONFIG="$DEFCONFIG"
+        fi
         EXTRA_CONFIGS=("$@")
 
         if [ ! -f "arch/arm64/configs/$BASE_CONFIG" ]; then
@@ -60,14 +69,14 @@ case "$1" in
         ;;
 
     kernel)
-        [ ! -f "$OUT_DIR/.config" ] && make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
+        if [ ! -f "$OUT_DIR/.config" ]; then
+            make "${MAKE_FLAGS[@]}" "$DEFCONFIG"
+        fi
 
         echo "Build started using $THREADS threads"
         START=$(date +%s)
 
-        make "${MAKE_FLAGS[@]}" -j"$THREADS" Image.gz 2>&1 | tee "$LOG_FILE"
-
-        if [ ${PIPESTATUS[0]} -eq 0 ]; then
+        if make "${MAKE_FLAGS[@]}" -j"$THREADS" Image.gz 2>&1 | tee "$LOG_FILE"; then
             DIFF=$(( $(date +%s) - START ))
             echo "Done! Took $((DIFF / 60))m $((DIFF % 60))s"
         else
