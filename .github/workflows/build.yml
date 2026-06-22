@@ -11,6 +11,8 @@ jobs:
       REPO_URL: https://github.com/${{ github.repository }}
       CCACHE_DIR: /home/runner/.ccache
       ARTIFACT: VanillaKernel-${{ github.sha }}.zip
+      CLANG_VERSION: clang-r416183b
+      CLANG_COMMIT: b669748458572622ed716407611633c5415da25c
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,13 +29,13 @@ jobs:
         id: cache-clang
         with:
           path: ~/clang
-          key: clang-r416183b
+          key: ${{ env.CLANG_VERSION }}
 
       - name: Fetch Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/clang
-          curl -sSL "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/b669748458572622ed716407611633c5415da25c/clang-r416183b.tar.gz" | tar -xz -C ~/clang
+          curl -sSL "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/${CLANG_COMMIT}/${CLANG_VERSION}.tar.gz" | tar -xz -C ~/clang
 
       - uses: actions/cache@v4
         with:
