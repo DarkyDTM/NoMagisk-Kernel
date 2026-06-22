@@ -442,7 +442,6 @@ out:
 
 SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
 {
-
 	return do_faccessat(dfd, filename, mode);
 }
 

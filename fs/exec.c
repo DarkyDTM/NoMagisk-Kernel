@@ -1926,7 +1926,6 @@ int do_execve(struct filename *filename,
 {
 	struct user_arg_ptr argv = { .ptr.native = __argv };
 	struct user_arg_ptr envp = { .ptr.native = __envp };
-
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
 
@@ -1954,7 +1953,6 @@ static int compat_do_execve(struct filename *filename,
 		.is_compat = true,
 		.ptr.compat = __envp,
 	};
-
 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
 }
 
