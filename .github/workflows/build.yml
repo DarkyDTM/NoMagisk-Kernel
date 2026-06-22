@@ -97,6 +97,9 @@ jobs:
           MINS=$(( DURATION / 60 ))
           SECS=$(( DURATION % 60 ))
 
+          # Escape HTML special chars so parse_mode=HTML never breaks on the commit subject
+          COMMIT_MSG_HTML=$(printf '%s' "$COMMIT_MSG" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+
           if [ "$STATUS" = "success" ]; then
             ICON="✅"
             STATE="Successful"
@@ -118,7 +121,7 @@ jobs:
 
           🌿 <b>Branch:</b> <code>${{ github.ref_name }}</code>
           ⏱ <b>Time:</b> ${MINS}m ${SECS}s
-          📝 <b>Commit:</b> <code>$COMMIT_MSG</code>
+          📝 <b>Commit:</b> <code>$COMMIT_MSG_HTML</code>
           🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>$EXTRA"
 
           if [ -n "$DOC" ]; then

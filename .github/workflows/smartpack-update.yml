@@ -23,11 +23,10 @@ jobs:
         id: vars
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
-          RELEASE_BODY="${{ github.event.release.body }}"
-          RELEASE_URL="${{ github.event.release.html_url }}"
-
           if [ -z "$TAG" ]; then
             TAG=$(gh release view --json tagName -q .tagName)
             RELEASE_BODY=$(gh release view --json body -q .body)
