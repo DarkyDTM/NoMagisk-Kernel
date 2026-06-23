@@ -19,7 +19,7 @@ sudo apt-get install -y \
 
 ## Toolchain
 
-Clang **r416183b** (the same toolchain the CI uses — see `.github/workflows/build.yml`):
+Clang **r416183b** (the same toolchain the CI uses - see `.github/workflows/build.yml`):
 
 ```bash
 mkdir -p ~/clang
@@ -55,9 +55,9 @@ SmartPack-Kernel Manager update channel (see `smartpack/update.json`).
 
 ## Credits
 
-- [LineageOS](https://github.com/LineageOS/android_kernel_oneplus_sm8350) — base kernel source
-- [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) — root solution
-- [AnyKernel3](https://github.com/osm0sis/AnyKernel3) — flashable packaging
+- [LineageOS](https://github.com/LineageOS/android_kernel_oneplus_sm8350) - base kernel source
+- [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) - root solution
+- [AnyKernel3](https://github.com/osm0sis/AnyKernel3) - flashable packaging
 
 ## License
 
