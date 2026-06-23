@@ -59,6 +59,11 @@ jobs:
           set -o pipefail
           ./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
 
+      - name: Verify defconfig fragment applied
+        run: |
+          chmod +x tools/check-fragment.sh
+          ./tools/check-fragment.sh arch/arm64/configs/vanillaKernel-defconfig out/.config 2>&1 | tee -a build.log
+
       - name: Build kernel
         run: |
           set -o pipefail
