@@ -29,7 +29,7 @@ jobs:
         id: cache-clang
         with:
           path: ~/clang
-          key: ${{ env.CLANG_VERSION }}
+          key: ${{ env.CLANG_VERSION }}-${{ env.CLANG_COMMIT }}
 
       - name: Fetch Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
@@ -68,7 +68,12 @@ jobs:
       - name: Pack release
         if: success()
         run: |
-          find out/arch/arm64/boot arch/arm64/boot -name "Image.gz" -exec cp {} tools/anykernel3/ \; -quit 2>/dev/null || true
+          IMAGE="out/arch/arm64/boot/Image.gz"
+          if [ ! -f "$IMAGE" ]; then
+            echo "::error::Kernel image not found at $IMAGE - build did not produce an output."
+            exit 1
+          fi
+          cp "$IMAGE" tools/anykernel3/
           cd tools/anykernel3
           rm -rf .git *.zip
           zip -r9 "../../$ARTIFACT" ./*
