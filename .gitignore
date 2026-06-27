@@ -44,6 +44,7 @@
 *.tab.[ch]
 *.tar
 *.xz
+__pycache__/
 Module.symvers
 modules.builtin
 modules.order

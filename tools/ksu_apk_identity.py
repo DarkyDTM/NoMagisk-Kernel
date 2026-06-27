@@ -1,13 +1,25 @@
 #!/usr/bin/env python3
 import hashlib
+import os
 import struct
 import sys
 import zipfile
 
 
+NO_INDEX = 0xFFFFFFFF
+
+
+class ApkIdentityError(Exception):
+    pass
+
+
 def usage():
     print(f"usage: {sys.argv[0]} <manager.apk> [package.name]", file=sys.stderr)
     raise SystemExit(2)
+
+
+def fail(message):
+    raise ApkIdentityError(message)
 
 
 def read_u32(buf, offset):
@@ -65,12 +77,21 @@ def read_length16(buf, offset):
     return first, offset + 2
 
 
+def string_at(strings, index, what):
+    if index == NO_INDEX or index >= len(strings):
+        fail(f"{what} string index out of range: {index}")
+    return strings[index]
+
+
 def extract_package_name(apk_path):
     with zipfile.ZipFile(apk_path, "r") as apk:
-        manifest = apk.read("AndroidManifest.xml")
+        try:
+            manifest = apk.read("AndroidManifest.xml")
+        except KeyError:
+            fail("AndroidManifest.xml not found in APK")
 
     if read_u16(manifest, 0) != 0x0003:
-        raise SystemExit("AndroidManifest.xml is not binary XML")
+        fail("AndroidManifest.xml is not binary XML")
 
     pos = read_u16(manifest, 2)
     strings = None
@@ -80,37 +101,46 @@ def extract_package_name(apk_path):
         header_size = read_u16(manifest, pos + 2)
         chunk_size = read_u32(manifest, pos + 4)
 
+        if chunk_size < header_size or chunk_size == 0:
+            fail("invalid manifest chunk size")
+
         if chunk_type == 0x0001:
             strings = decode_string_pool(manifest, pos)
         elif chunk_type == 0x0102:
             if strings is None:
-                raise SystemExit("manifest string pool not found")
+                fail("manifest string pool not found")
 
-            name_idx = read_u32(manifest, pos + 20)
-            attr_start = read_u16(manifest, pos + 24)
-            attr_size = read_u16(manifest, pos + 26)
-            attr_count = read_u16(manifest, pos + 28)
+            ext_base = pos + header_size
+            if ext_base + 20 > pos + chunk_size:
+                fail("manifest start element chunk is truncated")
 
-            if strings[name_idx] != "manifest":
+            name_idx = read_u32(manifest, ext_base + 4)
+            attr_start = read_u16(manifest, ext_base + 8)
+            attr_size = read_u16(manifest, ext_base + 10)
+            attr_count = read_u16(manifest, ext_base + 12)
+
+            if string_at(strings, name_idx, "element name") != "manifest":
                 pos += chunk_size
                 continue
 
-            attrs_base = pos + attr_start
+            attrs_base = ext_base + attr_start
+            attrs_end = attrs_base + attr_count * attr_size
+            if attr_size < 12 or attrs_base < ext_base or attrs_end > pos + chunk_size:
+                fail("manifest attribute table is invalid")
+
             for i in range(attr_count):
                 attr = attrs_base + i * attr_size
                 attr_name_idx = read_u32(manifest, attr + 4)
                 raw_value_idx = read_u32(manifest, attr + 8)
 
-                if strings[attr_name_idx] == "package":
-                    if raw_value_idx == 0xFFFFFFFF:
-                        raise SystemExit("manifest package is not a raw string")
-                    return strings[raw_value_idx]
+                if string_at(strings, attr_name_idx, "attribute name") == "package":
+                    if raw_value_idx == NO_INDEX:
+                        fail("manifest package is not a raw string")
+                    return string_at(strings, raw_value_idx, "package value")
 
-        if chunk_size < header_size or chunk_size == 0:
-            raise SystemExit("invalid manifest chunk size")
         pos += chunk_size
 
-    raise SystemExit("manifest package name not found")
+    fail("manifest package name not found")
 
 
 def main():
@@ -126,17 +156,17 @@ def main():
     eocd_start = max(0, len(data) - 0x10000 - 22)
     eocd = data.rfind(b"PK\x05\x06", eocd_start)
     if eocd < 0:
-        raise SystemExit("EOCD not found")
+        fail("EOCD not found")
 
     cd_offset = read_u32(data, eocd + 16)
     footer = cd_offset - 24
     if footer < 0:
-        raise SystemExit("APK signing block footer is invalid")
+        fail("APK signing block footer is invalid")
 
     block_size = read_u64(data, footer)
     magic = data[footer + 8:footer + 24]
     if magic != b"APK Sig Block 42":
-        raise SystemExit("APK signing block not found")
+        fail("APK signing block not found")
 
     p = cd_offset - block_size
     end = footer
@@ -161,7 +191,7 @@ def main():
 
             cert = value[q:q + cert_size]
             if len(cert) != cert_size:
-                raise SystemExit("certificate data is truncated")
+                fail("certificate data is truncated")
 
             cert_hash = hashlib.sha256(cert).hexdigest()
             print("{")
@@ -173,8 +203,36 @@ def main():
 
         p += 8 + pair_size
 
-    raise SystemExit("APK v2 signature block not found")
+    fail("APK v2 signature block not found")
+
+
+def run():
+    try:
+        main()
+    except ApkIdentityError as e:
+        print(f"error: {e}", file=sys.stderr)
+        raise SystemExit(1)
+    except FileNotFoundError as e:
+        print(f"error: file not found: {e.filename}", file=sys.stderr)
+        raise SystemExit(1)
+    except PermissionError as e:
+        print(f"error: permission denied: {e.filename}", file=sys.stderr)
+        raise SystemExit(1)
+    except IsADirectoryError as e:
+        print(f"error: path is a directory: {e.filename}", file=sys.stderr)
+        raise SystemExit(1)
+    except zipfile.BadZipFile:
+        print("error: input is not a valid APK/zip file", file=sys.stderr)
+        raise SystemExit(1)
+    except (IndexError, struct.error, UnicodeDecodeError):
+        print("error: APK metadata is malformed or truncated", file=sys.stderr)
+        raise SystemExit(1)
+    except BrokenPipeError:
+        try:
+            sys.stdout.close()
+        finally:
+            os._exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    run()
