@@ -1,32 +1,129 @@
 name: Build Kernel
+
 on:
   push:
-    branches: [ lineage-23.2, lineage-23.2-test ]
+    branches:
+      - lineage-23.2
+      - lineage-23.2-test
+  repository_dispatch:
+    types:
+      - vanillasu-updated
   workflow_dispatch:
+    inputs:
+      vanillasu_sha:
+        description: VanillaSU commit SHA to build
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  ARTIFACT: VanillaKernel-${{ github.sha }}.zip
+  BASE_DEFCONFIG: vendor/lahaina-qgki_defconfig
+  BUILD_LOG: build.log
+  CCACHE_DIR: /home/runner/.ccache
+  CLANG_COMMIT: b669748458572622ed716407611633c5415da25c
+  CLANG_VERSION: clang-r416183b
+  FRAGMENT_DEFCONFIG: arch/arm64/configs/vanillaKernel-defconfig
+  IMAGE: out/arch/arm64/boot/Image.gz
+  REPO_URL: https://github.com/${{ github.repository }}
 
 jobs:
   build:
+    name: Build kernel
     runs-on: ubuntu-22.04
-    env:
-      REPO_URL: https://github.com/${{ github.repository }}
-      CCACHE_DIR: /home/runner/.ccache
-      ARTIFACT: VanillaKernel-${{ github.sha }}.zip
-      CLANG_VERSION: clang-r416183b
-      CLANG_COMMIT: b669748458572622ed716407611633c5415da25c
+    timeout-minutes: 180
+    outputs:
+      artifact: ${{ steps.meta.outputs.artifact }}
+      commit_hash: ${{ steps.meta.outputs.commit_hash }}
+      commit_msg: ${{ steps.meta.outputs.commit_msg }}
+      duration: ${{ steps.duration.outputs.duration }}
+      repo_url: ${{ steps.meta.outputs.repo_url }}
+      vanillasu_hash: ${{ steps.meta.outputs.vanillasu_hash }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout sources
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           submodules: recursive
 
-      - name: Initialize environment
+      - name: Prepare KernelSU-Next metadata
+        env:
+          DISPATCH_BRANCH: ${{ github.event.client_payload.branch || '' }}
+          VANILLASU_SHA: ${{ github.event.client_payload.sha || github.event.client_payload.vanillasu_sha || github.event.inputs.vanillasu_sha || '' }}
         run: |
-          git submodule foreach --recursive 'git fetch --unshallow || true'
-          sudo apt-get update
-          sudo apt-get install -y bc bison flex libssl-dev libelf-dev make python3 ccache zip gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu rsync
+          if [ ! -d KernelSU-Next ]; then
+            echo "::error::KernelSU-Next submodule is missing"
+            exit 1
+          fi
 
-      - uses: actions/cache@v4
+          git submodule sync -- KernelSU-Next
+
+          vanillasu_url="$(git config --file .gitmodules --get submodule.KernelSU-Next.url)"
+          vanillasu_branch="${DISPATCH_BRANCH:-$(git config --file .gitmodules --get submodule.KernelSU-Next.branch || true)}"
+          vanillasu_branch="${vanillasu_branch:-legacy-susfs}"
+
+          if [ "$(git -C KernelSU-Next rev-parse --is-shallow-repository)" = "true" ]; then
+            git -C KernelSU-Next fetch --unshallow --tags --force "$vanillasu_url" "$vanillasu_branch"
+          else
+            git -C KernelSU-Next fetch --tags --force "$vanillasu_url" "$vanillasu_branch"
+          fi
+
+          if [ -n "$VANILLASU_SHA" ]; then
+            if ! git -C KernelSU-Next cat-file -e "${VANILLASU_SHA}^{commit}" 2>/dev/null; then
+              echo "::error::VanillaSU commit not found on ${vanillasu_branch}: ${VANILLASU_SHA}"
+              exit 1
+            fi
+
+            git -C KernelSU-Next checkout --detach "$VANILLASU_SHA"
+            vanillasu_short="$(git -C KernelSU-Next rev-parse --short HEAD)"
+            echo "ARTIFACT=VanillaKernel-${GITHUB_SHA}-${vanillasu_short}.zip" >> "$GITHUB_ENV"
+          fi
+
+      - name: Capture build metadata
+        id: meta
+        run: |
+          start_time="$(date +%s)"
+
+          {
+            echo "artifact=${ARTIFACT}"
+            echo "commit_hash=$(git rev-parse --short HEAD)"
+            echo "commit_msg=$(git log -1 --pretty=%s)"
+            echo "repo_url=${REPO_URL}"
+            echo "vanillasu_hash=$(git -C KernelSU-Next rev-parse --short HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "START_TIME=${start_time}" >> "$GITHUB_ENV"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            bc \
+            binutils-aarch64-linux-gnu \
+            bison \
+            ccache \
+            flex \
+            gcc-aarch64-linux-gnu \
+            libelf-dev \
+            libssl-dev \
+            make \
+            python3 \
+            rsync \
+            zip
+
+      - name: Restore Clang cache
         id: cache-clang
+        uses: actions/cache@v4
         with:
           path: ~/clang
           key: ${{ env.CLANG_VERSION }}-${{ env.CLANG_COMMIT }}
@@ -34,129 +131,205 @@ jobs:
       - name: Fetch Clang
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ~/clang
+          install -d "$HOME/clang"
           url="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/${CLANG_COMMIT}/${CLANG_VERSION}.tar.gz"
+
           for attempt in 1 2 3; do
-            if curl -fsSL --retry 3 --retry-delay 5 -o ~/clang.tar.gz "$url" && gzip -t ~/clang.tar.gz 2>/dev/null; then
+            if curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/clang.tar.gz" "$url" &&
+               gzip -t "$RUNNER_TEMP/clang.tar.gz" 2>/dev/null; then
               break
             fi
+
             if [ "$attempt" = 3 ]; then
               echo "::error::Failed to fetch a valid Clang archive from $url"
               exit 1
             fi
+
             echo "Clang fetch attempt $attempt failed, retrying..."
             sleep 5
           done
-          tar -xzf ~/clang.tar.gz -C ~/clang
-          rm -f ~/clang.tar.gz
-          test -x ~/clang/bin/clang || { echo "::error::clang binary missing after extraction"; exit 1; }
 
-      - uses: actions/cache@v4
+          tar -xzf "$RUNNER_TEMP/clang.tar.gz" -C "$HOME/clang"
+          test -x "$HOME/clang/bin/clang" || {
+            echo "::error::clang binary missing after extraction"
+            exit 1
+          }
+
+      - name: Restore ccache
+        uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
             ccache-${{ runner.os }}-${{ github.ref_name }}-
             ccache-${{ runner.os }}-
 
-      - name: Prepare build
+      - name: Prepare build cache
         run: |
-          echo "$HOME/clang/bin" >> $GITHUB_PATH
-          echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
-          echo "COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)" >> $GITHUB_ENV
-          echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          chmod +x tools/build.sh
+          echo "$HOME/clang/bin" >> "$GITHUB_PATH"
           ccache -M 5G
+          ccache -z
 
       - name: Build config
         run: |
           set -o pipefail
-          ./tools/build.sh config vendor/lahaina-qgki_defconfig arch/arm64/configs/vanillaKernel-defconfig 2>&1 | tee build.log
+          ./tools/build.sh config "$BASE_DEFCONFIG" "$FRAGMENT_DEFCONFIG" 2>&1 | tee "$BUILD_LOG"
 
-      - name: Verify defconfig fragment applied
+      - name: Verify defconfig fragment
         run: |
-          chmod +x tools/check-fragment.sh
-          ./tools/check-fragment.sh arch/arm64/configs/vanillaKernel-defconfig out/.config 2>&1 | tee -a build.log
+          set -o pipefail
+          ./tools/check-fragment.sh "$FRAGMENT_DEFCONFIG" out/.config 2>&1 | tee -a "$BUILD_LOG"
 
       - name: Build kernel
         run: |
-          set -o pipefail
-          ./tools/build.sh kernel 2>&1 | tee -a build.log
-          ccache -s
+          cp "$BUILD_LOG" "$RUNNER_TEMP/pre-kernel.log"
 
-      - name: Pack release
-        if: success()
+          if ./tools/build.sh kernel; then
+            kernel_status=0
+          else
+            kernel_status=$?
+          fi
+
+          cat "$RUNNER_TEMP/pre-kernel.log" "$BUILD_LOG" > "$RUNNER_TEMP/full-build.log" || true
+          mv "$RUNNER_TEMP/full-build.log" "$BUILD_LOG" || true
+
+          if [ "$kernel_status" -ne 0 ]; then
+            exit "$kernel_status"
+          fi
+
+          ccache -s | tee -a "$BUILD_LOG"
+
+      - name: Pack AnyKernel3 zip
         run: |
-          IMAGE="out/arch/arm64/boot/Image.gz"
           if [ ! -f "$IMAGE" ]; then
-            echo "::error::Kernel image not found at $IMAGE - build did not produce an output."
+            echo "::error::Kernel image not found at $IMAGE"
             exit 1
           fi
-          cp "$IMAGE" tools/anykernel3/
-          cd tools/anykernel3
-          rm -rf .git *.zip
-          zip -r9 "../../$ARTIFACT" ./*
 
-      - uses: actions/upload-artifact@v4
-        if: success()
+          package_dir="$RUNNER_TEMP/anykernel3"
+          rm -rf "$package_dir"
+          install -d "$package_dir"
+
+          cp -a tools/anykernel3/. "$package_dir"/
+          cp "$IMAGE" "$package_dir"/
+
+          (
+            cd "$package_dir"
+            zip -r9 "$GITHUB_WORKSPACE/$ARTIFACT" .
+          )
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
         with:
           name: VanillaKernel
           path: ${{ env.ARTIFACT }}
-          compression-level: 9
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload build log
         if: failure()
+        uses: actions/upload-artifact@v4
         with:
           name: build-log
-          path: build.log
+          path: ${{ env.BUILD_LOG }}
+          if-no-files-found: ignore
+          retention-days: 7
 
-      - name: Notify Telegram
+      - name: Record build duration
+        id: duration
         if: always()
+        run: |
+          end_time="$(date +%s)"
+          start_time="${START_TIME:-$end_time}"
+          elapsed=$((end_time - start_time))
+          echo "duration=$((elapsed / 60))m $((elapsed % 60))s" >> "$GITHUB_OUTPUT"
+
+  notify:
+    name: Notify Telegram
+    runs-on: ubuntu-22.04
+    needs: build
+    if: always()
+    timeout-minutes: 10
+
+    steps:
+      - name: Download kernel artifact
+        if: needs.build.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: VanillaKernel
+          path: notify-artifacts
+
+      - name: Download build log
+        if: needs.build.result != 'success'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-log
+          path: notify-artifacts
+
+      - name: Send Telegram notification
+        continue-on-error: true
         env:
+          ARTIFACT: ${{ needs.build.outputs.artifact }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ vars.CHAT_ID }}
-          STATUS: ${{ job.status }}
+          COMMIT_HASH: ${{ needs.build.outputs.commit_hash }}
+          COMMIT_MSG: ${{ needs.build.outputs.commit_msg }}
+          DURATION: ${{ needs.build.outputs.duration }}
+          REPO_URL: ${{ needs.build.outputs.repo_url }}
+          STATUS: ${{ needs.build.result }}
+          VANILLASU_HASH: ${{ needs.build.outputs.vanillasu_hash }}
         run: |
-          DURATION=$(( $(date +%s) - START_TIME ))
-          MINS=$(( DURATION / 60 ))
-          SECS=$(( DURATION % 60 ))
-
-          # Escape HTML special chars so parse_mode=HTML never breaks on the commit subject
-          COMMIT_MSG_HTML=$(printf '%s' "$COMMIT_MSG" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
-
-          if [ "$STATUS" = "success" ]; then
-            ICON="✅"
-            STATE="Successful"
-            DOC="-F document=@$ARTIFACT"
-            EXTRA=""
-          else
-            ICON="❌"
-            STATE="Failed"
-            if [ -f build.log ]; then
-              DOC="-F document=@build.log"
-              EXTRA=$'\n\nError log attached.'
-            else
-              DOC=""
-              EXTRA=$'\n\n<i>Log missing - failed before compilation.</i>'
-            fi
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Telegram credentials are not configured; skipping notification."
+            exit 0
           fi
 
-          CAPTION="$ICON <b>Kernel Build $STATE!</b>
+          escape_html() {
+            sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+          }
 
-          🌿 <b>Branch:</b> <code>${{ github.ref_name }}</code>
-          ⏱ <b>Time:</b> ${MINS}m ${SECS}s
-          📝 <b>Commit:</b> <code>$COMMIT_MSG_HTML</code>
-          🔢 <b>Hash:</b> <a href=\"$REPO_URL/commit/${{ github.sha }}\">$COMMIT_HASH</a>$EXTRA"
+          commit_msg_html="$(printf '%s' "${COMMIT_MSG:-unknown}" | escape_html)"
+          commit_hash="${COMMIT_HASH:-unknown}"
+          duration="${DURATION:-unknown}"
+          repo_url="${REPO_URL:-https://github.com/${GITHUB_REPOSITORY}}"
 
-          if [ -n "$DOC" ]; then
-            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendDocument" \
-              -F chat_id="$CHAT_ID" \
-              $DOC \
-              -F caption="$CAPTION" \
-              -F parse_mode="HTML"
+          case "$STATUS" in
+            success)
+              state="Successful"
+              prefix="[OK]"
+              document="notify-artifacts/${ARTIFACT}"
+              ;;
+            cancelled)
+              state="Cancelled"
+              prefix="[CANCELLED]"
+              document="notify-artifacts/build.log"
+              ;;
+            *)
+              state="Failed"
+              prefix="[FAIL]"
+              document="notify-artifacts/build.log"
+              ;;
+          esac
+
+          caption="${prefix} <b>Kernel Build ${state}</b>
+
+          <b>Branch:</b> <code>${GITHUB_REF_NAME}</code>
+          <b>Time:</b> ${duration}
+          <b>Commit:</b> <code>${commit_msg_html}</code>
+          <b>Hash:</b> <a href=\"${repo_url}/commit/${GITHUB_SHA}\">${commit_hash}</a>
+          <b>VanillaSU:</b> <code>${VANILLASU_HASH:-unknown}</code>"
+
+          if [ -f "$document" ]; then
+            curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+              -F "chat_id=${CHAT_ID}" \
+              -F "document=@${document}" \
+              -F "caption=${caption}" \
+              -F "parse_mode=HTML"
           else
-            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
-              -d chat_id="$CHAT_ID" \
-              -d text="$CAPTION" \
-              -d parse_mode="HTML"
+            curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${CHAT_ID}" \
+              -d "text=${caption}" \
+              -d "parse_mode=HTML"
           fi
