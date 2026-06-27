@@ -1,4 +1,4 @@
 [submodule "KernelSU-Next"]
 	path = KernelSU-Next
-	url = https://github.com/darkydtm/VanillaKernelSU.git
+	url = https://github.com/vanilla-kernel/VanillaSU.git
 	branch = legacy-susfs
