@@ -2,108 +2,132 @@ name: Update SmartPack Metadata
 
 on:
   release:
-    types: [published]
+    types:
+      - published
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: smartpack-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   update-metadata:
-    runs-on: ubuntu-latest
+    name: Update metadata
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
 
     steps:
       - name: Checkout default branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare variables
-        id: vars
+      - name: Resolve release metadata
+        id: release
         env:
+          EVENT_RELEASE_BODY: ${{ github.event.release.body }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          EVENT_RELEASE_URL: ${{ github.event.release.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
-          RELEASE_BODY: ${{ github.event.release.body }}
-          RELEASE_URL: ${{ github.event.release.html_url }}
         run: |
-          if [ -z "$TAG" ]; then
-            TAG=$(gh release view --json tagName -q .tagName)
-            RELEASE_BODY=$(gh release view --json body -q .body)
-            RELEASE_URL=$(gh release view --json url -q .url)
+          tag="$EVENT_RELEASE_TAG"
+          release_body="$EVENT_RELEASE_BODY"
+          release_url="$EVENT_RELEASE_URL"
+
+          if [ -z "$tag" ]; then
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName || true)"
+            release_body="$(gh release view --repo "$GITHUB_REPOSITORY" --json body -q .body || true)"
+            release_url="$(gh release view --repo "$GITHUB_REPOSITORY" --json url -q .url || true)"
           fi
 
-          if [ -z "$TAG" ]; then
-            echo "Error: No release found in the repository!"
+          if [ -z "$tag" ]; then
+            echo "::error::No release found in $GITHUB_REPOSITORY"
             exit 1
           fi
 
-          VERSION="${TAG#v}"
-          ARTIFACT="VanillaKernel-${VERSION}.zip"
-          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ARTIFACT}"
+          version="${tag#v}"
+          artifact="VanillaKernel-${version}.zip"
+          download_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${artifact}"
+          changelog_url="$(printf '%s' "$release_body" | grep -Eo 'https?://[^][[:space:])"<>]+' | head -n 1 || true)"
+          changelog_url="${changelog_url:-$release_url}"
 
-          echo "tag=${TAG}"                                                >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}"                                        >> "$GITHUB_OUTPUT"
-          echo "artifact=${ARTIFACT}"                                      >> "$GITHUB_OUTPUT"
-          echo "download_url=${DOWNLOAD_URL}"                              >> "$GITHUB_OUTPUT"
-          echo "repo_url=https://github.com/${{ github.repository }}"      >> "$GITHUB_OUTPUT"
+          {
+            echo "artifact=${artifact}"
+            echo "changelog_url=${changelog_url}"
+            echo "download_url=${download_url}"
+            echo "repo_url=https://github.com/${GITHUB_REPOSITORY}"
+            echo "tag=${tag}"
+            echo "version=${version}"
+          } >> "$GITHUB_OUTPUT"
 
-          CHANGELOG_URL=$(printf '%s' "$RELEASE_BODY" \
-            | grep -oP 'https?://[^\s)\]"<>]+' \
-            | head -1)
-          CHANGELOG_URL="${CHANGELOG_URL:-${RELEASE_URL}}"
-
-          echo "changelog_url=${CHANGELOG_URL}" >> "$GITHUB_OUTPUT"
-
-      - name: Download artifact and compute SHA1
+      - name: Download release asset
         id: asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          ARTIFACT="${{ steps.vars.outputs.artifact }}"
+          artifact="${{ steps.release.outputs.artifact }}"
+          tag="${{ steps.release.outputs.tag }}"
 
-          echo "Looking for asset: ${ARTIFACT} in release: ${TAG}"
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$artifact" \
+            --dir "$RUNNER_TEMP"
 
-          gh release download "${TAG}" \
-            --repo "${{ github.repository }}" \
-            --pattern "${ARTIFACT}" \
-            --dir /tmp
+          asset_path="$RUNNER_TEMP/$artifact"
+          if [ ! -f "$asset_path" ]; then
+            echo "::error::Release asset not found: $artifact"
+            exit 1
+          fi
 
-          SHA1=$(sha1sum "/tmp/${ARTIFACT}" | awk '{print $1}')
-          echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
-          echo "SHA1: ${SHA1}"
+          sha1="$(sha1sum "$asset_path" | awk '{print $1}')"
+          echo "sha1=${sha1}" >> "$GITHUB_OUTPUT"
 
-      - name: Update smartpack/update.json
+      - name: Update smartpack metadata
+        env:
+          CHANGELOG_URL: ${{ steps.release.outputs.changelog_url }}
+          DOWNLOAD_URL: ${{ steps.release.outputs.download_url }}
+          SHA1: ${{ steps.asset.outputs.sha1 }}
+          SUPPORT_LINK: ${{ steps.release.outputs.repo_url }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          jq \
-            --arg version      "${{ steps.vars.outputs.version }}"       \
-            --arg link         "${{ steps.vars.outputs.download_url }}"  \
-            --arg changelog    "${{ steps.vars.outputs.changelog_url }}" \
-            --arg sha1         "${{ steps.asset.outputs.sha1 }}"         \
-            --arg support_link "${{ steps.vars.outputs.repo_url }}"      \
-            '
-              .kernel.version       = $version       |
-              .kernel.link          = $link          |
-              .kernel.changelog_url = $changelog     |
-              .kernel.sha1          = $sha1          |
-              .support.link         = $support_link
-            ' smartpack/update.json > /tmp/update.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          mv /tmp/update.json smartpack/update.json
+          path = Path("smartpack/update.json")
+          data = json.loads(path.read_text())
 
-          echo "=== smartpack/update.json after update ==="
-          cat smartpack/update.json
+          data.setdefault("kernel", {})
+          data.setdefault("support", {})
+          data["kernel"]["version"] = os.environ["VERSION"]
+          data["kernel"]["link"] = os.environ["DOWNLOAD_URL"]
+          data["kernel"]["changelog_url"] = os.environ["CHANGELOG_URL"]
+          data["kernel"]["sha1"] = os.environ["SHA1"]
+          data["support"]["link"] = os.environ["SUPPORT_LINK"]
 
-      - name: Commit and push
+          path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
+      - name: Commit metadata update
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
+          git config user.name "github-actions[bot]"
           git add smartpack/update.json
 
           if git diff --staged --quiet; then
-            echo "update.json is already up-to-date, nothing to commit."
-          else
-            git commit -m "chore: update smartpack/update.json for release ${{ steps.vars.outputs.tag }}"
-            git push
+            echo "smartpack/update.json is already up to date."
+            exit 0
           fi
+
+          git commit -m "chore: update SmartPack metadata for release ${TAG}"
+          git push
