@@ -1,7 +1,14 @@
 ![Banner](banner.png)
 # Vanilla Kernel - Magiskless experience
 
-Project to add **KernelSU-Next** and **useful patches** to **LineageOS** without losing vanilla for OnePlus 9 Pro
+Project to add **VanillaSU** (a KernelSU fork with **SUSFS**) and **useful patches** to **LineageOS** without losing vanilla for OnePlus 9 Pro
+
+## Features
+
+- **Base:** Linux 5.4.302, LineageOS source for OnePlus 9 Pro (`sm8350` / `lahaina`)
+- **Root:** [VanillaSU](https://github.com/vanilla-kernel/VanillaSU) - a KernelSU-Next fork, vendored as the `KernelSU` submodule
+- **SUSFS:** mount/kstat/uname spoofing and related hiding features enabled
+- **Packaging:** flashable AnyKernel3 zip, SmartPack-Kernel Manager update channel
 
 ## Warning
 Installing kernels older than 2.1.1 causes bootloop in the system and recovery due to upstream updates
@@ -19,7 +26,7 @@ sudo apt-get install -y \
 
 ## Toolchain
 
-Clang **r416183b** (the same toolchain the CI uses — see `.github/workflows/build.yml`):
+Clang **r416183b** (the same toolchain the CI uses - see `.github/workflows/build.yml`):
 
 ```bash
 mkdir -p ~/clang
@@ -30,6 +37,12 @@ export PATH="$HOME/clang/bin:$PATH"
 ```
 
 ## Building
+
+Make sure the `KernelSU` submodule is checked out first:
+
+```bash
+git submodule update --init --recursive
+```
 
 The `build.sh` script in the tools/ directory accepts the following commands:
 
@@ -55,9 +68,11 @@ SmartPack-Kernel Manager update channel (see `smartpack/update.json`).
 
 ## Credits
 
-- [LineageOS](https://github.com/LineageOS/android_kernel_oneplus_sm8350) — base kernel source
-- [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) — root solution
-- [AnyKernel3](https://github.com/osm0sis/AnyKernel3) — flashable packaging
+- [LineageOS](https://github.com/LineageOS/android_kernel_oneplus_sm8350) - base kernel source
+- [KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) - upstream root solution
+- [VanillaSU](https://github.com/vanilla-kernel/VanillaSU) - KernelSU-Next fork used by this kernel
+- [SUSFS](https://gitlab.com/simonpunk/susfs4ksu) - root-hiding filesystem layer
+- [AnyKernel3](https://github.com/osm0sis/AnyKernel3) - flashable packaging
 
 ## License
 
