@@ -56,36 +56,36 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Prepare KernelSU-Next metadata
+      - name: Prepare KernelSU metadata
         env:
           DISPATCH_BRANCH: ${{ github.event.client_payload.branch || '' }}
           VANILLASU_SHA: ${{ github.event.client_payload.sha || github.event.client_payload.vanillasu_sha || github.event.inputs.vanillasu_sha || '' }}
         run: |
-          if [ ! -d KernelSU-Next ]; then
-            echo "::error::KernelSU-Next submodule is missing"
+          if [ ! -d KernelSU ]; then
+            echo "::error::KernelSU submodule is missing"
             exit 1
           fi
 
-          git submodule sync -- KernelSU-Next
+          git submodule sync -- KernelSU
 
-          vanillasu_url="$(git config --file .gitmodules --get submodule.KernelSU-Next.url)"
-          vanillasu_branch="${DISPATCH_BRANCH:-$(git config --file .gitmodules --get submodule.KernelSU-Next.branch || true)}"
+          vanillasu_url="$(git config --file .gitmodules --get submodule.KernelSU.url)"
+          vanillasu_branch="${DISPATCH_BRANCH:-$(git config --file .gitmodules --get submodule.KernelSU.branch || true)}"
           vanillasu_branch="${vanillasu_branch:-legacy-susfs}"
 
-          if [ "$(git -C KernelSU-Next rev-parse --is-shallow-repository)" = "true" ]; then
-            git -C KernelSU-Next fetch --unshallow --tags --force "$vanillasu_url" "$vanillasu_branch"
+          if [ "$(git -C KernelSU rev-parse --is-shallow-repository)" = "true" ]; then
+            git -C KernelSU fetch --unshallow --tags --force "$vanillasu_url" "$vanillasu_branch"
           else
-            git -C KernelSU-Next fetch --tags --force "$vanillasu_url" "$vanillasu_branch"
+            git -C KernelSU fetch --tags --force "$vanillasu_url" "$vanillasu_branch"
           fi
 
           if [ -n "$VANILLASU_SHA" ]; then
-            if ! git -C KernelSU-Next cat-file -e "${VANILLASU_SHA}^{commit}" 2>/dev/null; then
+            if ! git -C KernelSU cat-file -e "${VANILLASU_SHA}^{commit}" 2>/dev/null; then
               echo "::error::VanillaSU commit not found on ${vanillasu_branch}: ${VANILLASU_SHA}"
               exit 1
             fi
 
-            git -C KernelSU-Next checkout --detach "$VANILLASU_SHA"
-            vanillasu_short="$(git -C KernelSU-Next rev-parse --short HEAD)"
+            git -C KernelSU checkout --detach "$VANILLASU_SHA"
+            vanillasu_short="$(git -C KernelSU rev-parse --short HEAD)"
             echo "ARTIFACT=VanillaKernel-${GITHUB_SHA}-${vanillasu_short}.zip" >> "$GITHUB_ENV"
           fi
 
@@ -99,7 +99,7 @@ jobs:
             echo "commit_hash=$(git rev-parse --short HEAD)"
             echo "commit_msg=$(git log -1 --pretty=%s)"
             echo "repo_url=${REPO_URL}"
-            echo "vanillasu_hash=$(git -C KernelSU-Next rev-parse --short HEAD)"
+            echo "vanillasu_hash=$(git -C KernelSU rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
 
           echo "START_TIME=${start_time}" >> "$GITHUB_ENV"
