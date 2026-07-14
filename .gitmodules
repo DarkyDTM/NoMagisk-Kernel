@@ -1,4 +1,4 @@
 [submodule "KernelSU"]
 	path = KernelSU
 	url = https://github.com/vanilla-kernel/VanillaSU.git
-	branch = legacy-susfs
+	branch = zeromount
