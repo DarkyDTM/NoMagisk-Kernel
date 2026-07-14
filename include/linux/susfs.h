@@ -68,7 +68,7 @@ struct st_susfs_hide_sus_mnts_for_non_su_procs {
 #define KSTAT_SPOOF_ATIME_TV_NSEC (1 << 5)
 #define KSTAT_SPOOF_MTIME_TV_SEC (1 << 6)
 #define KSTAT_SPOOF_MTIME_TV_NSEC (1 << 7)
-#define KSTAT_SPOOF_CTIME_TV_SEC (1 < 8)
+#define KSTAT_SPOOF_CTIME_TV_SEC (1 << 8)
 #define KSTAT_SPOOF_CTIME_TV_NSEC (1 << 9)
 #define KSTAT_SPOOF_BLOCKS (1 << 10)
 #define KSTAT_SPOOF_BLKSIZE (1 << 11)
@@ -99,6 +99,24 @@ struct st_susfs_sus_kstat_hlist {
 	bool                                    is_fuse;
 	struct st_susfs_sus_kstat               info;
 	struct hlist_node                       node;
+};
+
+struct st_susfs_sus_kstat_redirect {
+	char                                    virtual_pathname[SUSFS_MAX_LEN_PATHNAME];
+	char                                    real_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned long                           spoofed_ino;
+	unsigned long                           spoofed_dev;
+	unsigned int                            spoofed_nlink;
+	long long                               spoofed_size;
+	long                                    spoofed_atime_tv_sec;
+	long                                    spoofed_mtime_tv_sec;
+	long                                    spoofed_ctime_tv_sec;
+	unsigned long                           spoofed_atime_tv_nsec;
+	unsigned long                           spoofed_mtime_tv_nsec;
+	unsigned long                           spoofed_ctime_tv_nsec;
+	long                                    spoofed_blksize;
+	long long                               spoofed_blocks;
+	int                                     err;
 };
 #endif
 
@@ -199,6 +217,9 @@ void susfs_set_hide_sus_mnts_for_non_su_procs(void __user **user_info);
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 void susfs_add_sus_kstat(void __user **user_info);
 void susfs_update_sus_kstat(void __user **user_info);
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT
+void susfs_add_sus_kstat_redirect(void __user **user_info);
+#endif
 #endif
 
 /* spoof_uname */

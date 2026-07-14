@@ -427,6 +427,151 @@ out_copy_to_user:
 	}
 }
 
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT
+static void susfs_fill_redirect_kstat(struct st_susfs_sus_kstat *entry,
+				      const struct st_susfs_sus_kstat_redirect *info)
+{
+	entry->is_statically = 1;
+	entry->spoofed_ino = info->spoofed_ino;
+	entry->spoofed_dev = info->spoofed_dev;
+	entry->spoofed_nlink = info->spoofed_nlink;
+	entry->spoofed_size = info->spoofed_size;
+	entry->spoofed_atime_tv_sec = info->spoofed_atime_tv_sec;
+	entry->spoofed_atime_tv_nsec = info->spoofed_atime_tv_nsec;
+	entry->spoofed_mtime_tv_sec = info->spoofed_mtime_tv_sec;
+	entry->spoofed_mtime_tv_nsec = info->spoofed_mtime_tv_nsec;
+	entry->spoofed_ctime_tv_sec = info->spoofed_ctime_tv_sec;
+	entry->spoofed_ctime_tv_nsec = info->spoofed_ctime_tv_nsec;
+	entry->spoofed_blksize = info->spoofed_blksize;
+	entry->spoofed_blocks = info->spoofed_blocks;
+	entry->flags = KSTAT_SPOOF_INO | KSTAT_SPOOF_DEV |
+		       KSTAT_SPOOF_NLINK | KSTAT_SPOOF_SIZE |
+		       KSTAT_SPOOF_ATIME_TV_SEC | KSTAT_SPOOF_ATIME_TV_NSEC |
+		       KSTAT_SPOOF_MTIME_TV_SEC | KSTAT_SPOOF_MTIME_TV_NSEC |
+		       KSTAT_SPOOF_CTIME_TV_SEC | KSTAT_SPOOF_CTIME_TV_NSEC |
+		       KSTAT_SPOOF_BLKSIZE | KSTAT_SPOOF_BLOCKS;
+}
+
+static int susfs_prepare_redirect_entry(const char *mark_path,
+					const char *target_path,
+					unsigned long target_ino,
+					const struct st_susfs_sus_kstat_redirect *info,
+					struct st_susfs_sus_kstat_hlist **out_entry)
+{
+	struct st_susfs_sus_kstat_hlist *entry;
+	int err;
+
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+	if (!entry)
+		return -ENOMEM;
+
+	entry->target_ino = target_ino;
+	entry->info.target_ino = target_ino;
+	strncpy(entry->info.target_pathname, target_path, SUSFS_MAX_LEN_PATHNAME - 1);
+	entry->info.target_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
+	susfs_fill_redirect_kstat(&entry->info, info);
+
+	err = susfs_mark_inode_sus_kstat((char *)mark_path, entry);
+	if (err) {
+		kfree(entry);
+		return err;
+	}
+
+	*out_entry = entry;
+	return 0;
+}
+
+void susfs_add_sus_kstat_redirect(void __user **user_info)
+{
+	struct st_susfs_sus_kstat_redirect info = {0};
+	struct st_susfs_sus_kstat_hlist *real_entry = NULL;
+	struct st_susfs_sus_kstat_hlist *virtual_entry = NULL;
+	struct path real_path;
+	struct path virtual_path;
+	struct inode *real_inode;
+	struct inode *virtual_inode;
+	unsigned long real_ino;
+	unsigned long virtual_ino = 0;
+	bool has_virtual = false;
+	int err;
+
+	if (copy_from_user(&info, (struct st_susfs_sus_kstat_redirect __user *)*user_info, sizeof(info))) {
+		info.err = -EFAULT;
+		goto out_copy_to_user;
+	}
+
+	if (info.virtual_pathname[0] == '\0' || info.real_pathname[0] == '\0') {
+		info.err = -EINVAL;
+		goto out_copy_to_user;
+	}
+
+#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
+#ifdef CONFIG_MIPS
+	info.spoofed_dev = new_decode_dev(info.spoofed_dev);
+#else
+	info.spoofed_dev = huge_decode_dev(info.spoofed_dev);
+#endif
+#else
+	info.spoofed_dev = old_decode_dev(info.spoofed_dev);
+#endif
+
+	err = kern_path(info.real_pathname, 0, &real_path);
+	if (err) {
+		info.err = err;
+		goto out_copy_to_user;
+	}
+
+	real_inode = d_backing_inode(real_path.dentry);
+	if (!real_inode) {
+		path_put(&real_path);
+		info.err = -ENOENT;
+		goto out_copy_to_user;
+	}
+	real_ino = real_inode->i_ino;
+	path_put(&real_path);
+
+	err = susfs_prepare_redirect_entry(info.real_pathname, info.virtual_pathname,
+					   real_ino, &info, &real_entry);
+	if (err) {
+		info.err = err;
+		goto out_copy_to_user;
+	}
+
+	if (!kern_path(info.virtual_pathname, 0, &virtual_path)) {
+		virtual_inode = d_backing_inode(virtual_path.dentry);
+		if (virtual_inode) {
+			virtual_ino = virtual_inode->i_ino;
+			has_virtual = virtual_ino != 0 && virtual_ino != real_ino;
+		}
+		path_put(&virtual_path);
+	}
+
+	if (has_virtual) {
+		err = susfs_prepare_redirect_entry(info.virtual_pathname,
+						   info.virtual_pathname,
+						   virtual_ino, &info,
+						   &virtual_entry);
+		if (err) {
+			kfree(real_entry);
+			info.err = err;
+			goto out_copy_to_user;
+		}
+	}
+
+	mutex_lock(&susfs_mutex_lock_sus_kstat);
+	hash_add_rcu(SUS_KSTAT_HLIST, &real_entry->node, real_entry->target_ino);
+	if (virtual_entry)
+		hash_add_rcu(SUS_KSTAT_HLIST, &virtual_entry->node, virtual_entry->target_ino);
+	mutex_unlock(&susfs_mutex_lock_sus_kstat);
+
+	info.err = 0;
+out_copy_to_user:
+	if (copy_to_user(&((struct st_susfs_sus_kstat_redirect __user *)*user_info)->err, &info.err, sizeof(info.err)))
+		info.err = -EFAULT;
+	SUSFS_LOGI("CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT -> ret: %d\n", info.err);
+}
+#endif
+
 void susfs_update_sus_kstat(void __user **user_info) {
 	struct st_susfs_sus_kstat info = {0};
 	struct st_susfs_sus_kstat_hlist *new_entry, *tmp_entry;
@@ -1201,6 +1346,11 @@ void susfs_get_enabled_features(void __user **user_info) {
 	if (info->err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT
+	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (info->err) goto out_copy_to_user;
+	buf_ptr = info->enabled_features + copied_size;
+#endif
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SPOOF_UNAME\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
 	if (info->err) goto out_copy_to_user;
@@ -1228,6 +1378,11 @@ void susfs_get_enabled_features(void __user **user_info) {
 #endif
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_SUS_MAP\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
+	if (info->err) goto out_copy_to_user;
+	buf_ptr = info->enabled_features + copied_size;
+#endif
+#ifdef CONFIG_KSU_SUSFS_UNICODE_FILTER
+	info->err = copy_config_to_buf("CONFIG_KSU_SUSFS_UNICODE_FILTER\n", buf_ptr, &copied_size, SUSFS_ENABLED_FEATURES_SIZE);
 	if (info->err) goto out_copy_to_user;
 	buf_ptr = info->enabled_features + copied_size;
 #endif
@@ -1491,4 +1646,3 @@ void susfs_init(void) {\
 
 /* No module exit is needed becuase it should never be a loadable kernel module */
 //void __init susfs_exit(void)
-

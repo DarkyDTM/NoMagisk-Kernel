@@ -23,6 +23,7 @@
 #define CMD_SUSFS_ADD_SUS_KSTAT 0x55570
 #define CMD_SUSFS_UPDATE_SUS_KSTAT 0x55571
 #define CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY 0x55572
+#define CMD_SUSFS_ADD_SUS_KSTAT_REDIRECT 0x55573
 #define CMD_SUSFS_ADD_TRY_UMOUNT 0x55580 /* deprecated */
 #define CMD_SUSFS_SET_UNAME 0x55590
 #define CMD_SUSFS_ENABLE_LOG 0x555a0
@@ -154,6 +155,19 @@ static inline bool susfs_is_current_proc_umounted_app(void) {
 			current_uid().val >= 10000);
 #endif
 }
+
+#ifdef CONFIG_ZEROMOUNT
+extern bool zeromount_is_uid_blocked(uid_t uid);
+static inline bool susfs_is_uid_zeromount_excluded(uid_t uid)
+{
+	return zeromount_is_uid_blocked(uid);
+}
+#else
+static inline bool susfs_is_uid_zeromount_excluded(uid_t uid)
+{
+	return false;
+}
+#endif
 
 #define SUSFS_IS_INODE_SUS_MAP(inode) \
 		inode && inode->i_mapping && \
