@@ -17,8 +17,12 @@
 #include <linux/syscalls.h>
 #include <linux/pagemap.h>
 #include <linux/compat.h>
+#include <linux/slab.h>
 
 #include <linux/uaccess.h>
+#ifdef CONFIG_ZEROMOUNT
+#include <linux/zeromount.h>
+#endif
 #include <asm/unistd.h>
 
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
@@ -186,6 +190,48 @@ EXPORT_SYMBOL(vfs_statx_fd);
  *
  * 0 will be returned on success, and a -ve error code if unsuccessful.
  */
+#ifdef CONFIG_ZEROMOUNT
+static int zeromount_stat_hook(int dfd, const char __user *filename,
+			       struct kstat *stat, unsigned int request_mask,
+			       int flags)
+{
+	char kname[NAME_MAX + 1];
+	char *abs_path;
+	char *resolved;
+	struct path zm_path;
+	long copied;
+	int ret;
+
+	if (zm_is_recursive() || IS_ERR_OR_NULL(filename))
+		return -ENOENT;
+
+	copied = strncpy_from_user(kname, filename, sizeof(kname));
+	if (copied <= 0 || kname[0] == '/')
+		return -ENOENT;
+
+	abs_path = zeromount_build_absolute_path(dfd, kname);
+	if (!abs_path)
+		return -ENOENT;
+
+	resolved = zeromount_resolve_path(abs_path);
+	kfree(abs_path);
+	if (!resolved)
+		return -ENOENT;
+
+	zm_enter();
+	ret = kern_path(resolved, (flags & AT_SYMLINK_NOFOLLOW) ? 0 : LOOKUP_FOLLOW, &zm_path);
+	zm_exit();
+	kfree(resolved);
+	if (ret)
+		return ret;
+
+	ret = vfs_getattr(&zm_path, stat, request_mask,
+			  (flags & AT_SYMLINK_NOFOLLOW) ? AT_SYMLINK_NOFOLLOW : 0);
+	path_put(&zm_path);
+	return ret;
+}
+#endif
+
 
 int vfs_statx(int dfd, const char __user *filename, int flags,
 	      struct kstat *stat, u32 request_mask)
@@ -193,6 +239,15 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
 	struct path path;
 	int error = -EINVAL;
 	unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
+
+#ifdef CONFIG_ZEROMOUNT
+	if (filename) {
+		int zm_ret = zeromount_stat_hook(dfd, filename, stat, request_mask, flags);
+
+		if (zm_ret != -ENOENT)
+			return zm_ret;
+	}
+#endif
 
 	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
 		       AT_EMPTY_PATH | KSTAT_QUERY_FLAGS)) != 0)

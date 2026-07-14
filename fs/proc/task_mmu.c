@@ -22,6 +22,9 @@
 #include <linux/pkeys.h>
 #include <linux/mm_inline.h>
 #include <linux/ctype.h>
+#ifdef CONFIG_ZEROMOUNT
+#include <linux/zeromount.h>
+#endif
 #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
 #include <linux/susfs_def.h>
 #endif // #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
@@ -390,6 +393,9 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
+#ifdef CONFIG_ZEROMOUNT
+		zeromount_spoof_mmap_metadata(inode, &dev, &ino);
+#endif
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 		susfs_sus_kstat_spoof_show_map_vma(inode, &dev, &ino);

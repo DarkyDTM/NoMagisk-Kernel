@@ -21,6 +21,9 @@
 #include <linux/unistd.h>
 #include <linux/compat.h>
 #include <linux/uaccess.h>
+#ifdef CONFIG_ZEROMOUNT
+#include <linux/zeromount.h>
+#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 #include <linux/susfs_def.h>
 extern int susfs_get_data_path(struct path *path);
@@ -338,6 +341,9 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 		.current_dir = dirent
 	};
 	int error;
+#ifdef CONFIG_ZEROMOUNT
+	int initial_count = count;
+#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	int path_err = -EINVAL;
 	struct path path;
@@ -349,6 +355,13 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
+
+#ifdef CONFIG_ZEROMOUNT
+	if (f.file->f_pos >= ZEROMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (f.file->f_inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
@@ -365,6 +378,15 @@ orig_flow:
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+#ifdef CONFIG_ZEROMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		zeromount_inject_dents(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		if (count != initial_count)
+			error = initial_count - count;
+		goto zm_out;
+	}
+#endif
 	if (buf.prev_reclen) {
 		struct linux_dirent __user * lastdirent;
 		lastdirent = (void __user *)buf.current_dir - buf.prev_reclen;
@@ -374,6 +396,9 @@ orig_flow:
 		else
 			error = count - buf.count;
 	}
+#ifdef CONFIG_ZEROMOUNT
+zm_out:
+#endif
 	fdput_pos(f);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (!path_err)
@@ -463,6 +488,9 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
 		.current_dir = dirent
 	};
 	int error;
+#ifdef CONFIG_ZEROMOUNT
+	int initial_count = count;
+#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	int path_err = -EINVAL;
 	struct path path;
@@ -474,6 +502,13 @@ int ksys_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
+
+#ifdef CONFIG_ZEROMOUNT
+	if (f.file->f_pos >= ZEROMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (f.file->f_inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
@@ -490,6 +525,15 @@ orig_flow:
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+#ifdef CONFIG_ZEROMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		zeromount_inject_dents64(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		if (count != initial_count)
+			error = initial_count - count;
+		goto zm_out;
+	}
+#endif
 	if (buf.prev_reclen) {
 		struct linux_dirent64 __user * lastdirent;
 		typeof(lastdirent->d_off) d_off = buf.ctx.pos;
@@ -500,6 +544,9 @@ orig_flow:
 		else
 			error = count - buf.count;
 	}
+#ifdef CONFIG_ZEROMOUNT
+zm_out:
+#endif
 	fdput_pos(f);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (!path_err)
@@ -715,6 +762,9 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 		.count = count
 	};
 	int error;
+#ifdef CONFIG_ZEROMOUNT
+	int initial_count = count;
+#endif
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	int path_err = -EINVAL;
 	struct path path;
@@ -726,6 +776,13 @@ COMPAT_SYSCALL_DEFINE3(getdents, unsigned int, fd,
 	f = fdget_pos(fd);
 	if (!f.file)
 		return -EBADF;
+
+#ifdef CONFIG_ZEROMOUNT
+	if (f.file->f_pos >= ZEROMOUNT_MAGIC_POS) {
+		error = 0;
+		goto skip_real_iterate;
+	}
+#endif
 
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (f.file->f_inode->i_sb->s_magic == FUSE_SUPER_MAGIC) {
@@ -742,6 +799,15 @@ orig_flow:
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
 		error = buf.error;
+#ifdef CONFIG_ZEROMOUNT
+skip_real_iterate:
+	if (error >= 0 && !signal_pending(current)) {
+		zeromount_inject_dents(f.file, (void __user **)&dirent, &count, &f.file->f_pos);
+		if (count != initial_count)
+			error = initial_count - count;
+		goto zm_out;
+	}
+#endif
 	lastdirent = buf.previous;
 	if (lastdirent) {
 		if (put_user(buf.ctx.pos, &lastdirent->d_off))
@@ -749,6 +815,9 @@ orig_flow:
 		else
 			error = count - buf.count;
 	}
+#ifdef CONFIG_ZEROMOUNT
+zm_out:
+#endif
 	fdput_pos(f);
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	if (!path_err)
