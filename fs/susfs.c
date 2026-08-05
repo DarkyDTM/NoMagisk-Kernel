@@ -20,6 +20,7 @@
 #include <linux/workqueue.h>
 #include <linux/fsnotify_backend.h>
 #include <linux/jump_label.h>
+#include <linux/build_bug.h>
 #include <linux/version.h> // We need check kernel version.
 #include <linux/susfs.h>
 #include "fuse/fuse_i.h"
@@ -44,6 +45,25 @@ DEFINE_STATIC_SRCU(susfs_srcu_sus_path_loop);
 static DEFINE_MUTEX(susfs_mutex_lock_sus_path);
 static LIST_HEAD(LH_SUS_PATH_LOOP);
 const struct qstr susfs_fake_qstr_name = QSTR_INIT("..5.u.S", 7); // used to re-test the dcache lookup, make sure you don't have file named like this!!
+
+void susfs_set_i_state_on_external_dir(void __user **user_info)
+{
+	struct st_external_dir info = {0};
+
+	if (copy_from_user(&info, (struct st_external_dir __user *)*user_info,
+			   sizeof(info))) {
+		info.err = -EFAULT;
+		goto out_copy_to_user;
+	}
+
+	info.err = 0;
+out_copy_to_user:
+	if (copy_to_user(&((struct st_external_dir __user *)*user_info)->err,
+			 &info.err, sizeof(info.err)))
+		info.err = -EFAULT;
+
+	SUSFS_LOGI("CMD_SUSFS_SET_EXTERNAL_DIR -> ret: %d\n", info.err);
+}
 
 void susfs_add_sus_path(void __user **user_info) {
 	struct st_susfs_sus_path info = {0};
@@ -345,6 +365,7 @@ void susfs_add_sus_kstat(void __user **user_info) {
 #endif /* defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64) */
 
 	new_entry->target_ino = info.target_ino;
+	new_entry->flags = KSTAT_SPOOF_ALL;
 	memcpy(&new_entry->info, &info, sizeof(info));
 
 	// statically or not, check for duplicated entry, and remove it first if so
@@ -444,12 +465,6 @@ static void susfs_fill_redirect_kstat(struct st_susfs_sus_kstat *entry,
 	entry->spoofed_ctime_tv_nsec = info->spoofed_ctime_tv_nsec;
 	entry->spoofed_blksize = info->spoofed_blksize;
 	entry->spoofed_blocks = info->spoofed_blocks;
-	entry->flags = KSTAT_SPOOF_INO | KSTAT_SPOOF_DEV |
-		       KSTAT_SPOOF_NLINK | KSTAT_SPOOF_SIZE |
-		       KSTAT_SPOOF_ATIME_TV_SEC | KSTAT_SPOOF_ATIME_TV_NSEC |
-		       KSTAT_SPOOF_MTIME_TV_SEC | KSTAT_SPOOF_MTIME_TV_NSEC |
-		       KSTAT_SPOOF_CTIME_TV_SEC | KSTAT_SPOOF_CTIME_TV_NSEC |
-		       KSTAT_SPOOF_BLKSIZE | KSTAT_SPOOF_BLOCKS;
 }
 
 static int susfs_prepare_redirect_entry(const char *mark_path,
@@ -470,6 +485,7 @@ static int susfs_prepare_redirect_entry(const char *mark_path,
 	strncpy(entry->info.target_pathname, target_path, SUSFS_MAX_LEN_PATHNAME - 1);
 	entry->info.target_pathname[SUSFS_MAX_LEN_PATHNAME - 1] = '\0';
 	susfs_fill_redirect_kstat(&entry->info, info);
+	entry->flags = KSTAT_SPOOF_ALL;
 
 	err = susfs_mark_inode_sus_kstat((char *)mark_path, entry);
 	if (err) {
@@ -598,6 +614,7 @@ void susfs_update_sus_kstat(void __user **user_info) {
 			new_entry->target_ino = info.target_ino;
 			new_entry->target_dev = tmp_entry->target_dev;
 			new_entry->is_fuse = tmp_entry->is_fuse;
+			new_entry->flags = tmp_entry->flags;
 			new_entry->info.target_ino = info.target_ino;
 			info.err = susfs_mark_inode_sus_kstat(new_entry->info.target_pathname, new_entry);
 			if (info.err) {
@@ -669,29 +686,29 @@ out_spoof_kstat:
 		{
 			SUSFS_LOGI("spoofing kstat for path: %s, target_ino: %lu, target_dev: %u\n",
 					entry->info.target_pathname, target_ino, target_dev);
-			if (entry->info.flags & KSTAT_SPOOF_INO)
+			if (entry->flags & KSTAT_SPOOF_INO)
 				stat->ino = entry->info.spoofed_ino;
-			if (entry->info.flags & KSTAT_SPOOF_DEV)
+			if (entry->flags & KSTAT_SPOOF_DEV)
 				stat->dev = entry->info.spoofed_dev;
-			if (entry->info.flags & KSTAT_SPOOF_NLINK)
+			if (entry->flags & KSTAT_SPOOF_NLINK)
 				stat->nlink = entry->info.spoofed_nlink;
-			if (entry->info.flags & KSTAT_SPOOF_SIZE)
+			if (entry->flags & KSTAT_SPOOF_SIZE)
 				stat->size = entry->info.spoofed_size;
-			if (entry->info.flags & KSTAT_SPOOF_ATIME_TV_SEC)
+			if (entry->flags & KSTAT_SPOOF_ATIME_TV_SEC)
 				stat->atime.tv_sec = entry->info.spoofed_atime_tv_sec;
-			if (entry->info.flags & KSTAT_SPOOF_ATIME_TV_NSEC)
+			if (entry->flags & KSTAT_SPOOF_ATIME_TV_NSEC)
 				stat->atime.tv_nsec = entry->info.spoofed_atime_tv_nsec;
-			if (entry->info.flags & KSTAT_SPOOF_MTIME_TV_SEC)
+			if (entry->flags & KSTAT_SPOOF_MTIME_TV_SEC)
 				stat->mtime.tv_sec = entry->info.spoofed_mtime_tv_sec;
-			if (entry->info.flags & KSTAT_SPOOF_MTIME_TV_NSEC)
+			if (entry->flags & KSTAT_SPOOF_MTIME_TV_NSEC)
 				stat->mtime.tv_nsec = entry->info.spoofed_mtime_tv_nsec;
-			if (entry->info.flags & KSTAT_SPOOF_CTIME_TV_SEC)
+			if (entry->flags & KSTAT_SPOOF_CTIME_TV_SEC)
 				stat->ctime.tv_sec = entry->info.spoofed_ctime_tv_sec;
-			if (entry->info.flags & KSTAT_SPOOF_CTIME_TV_NSEC)
+			if (entry->flags & KSTAT_SPOOF_CTIME_TV_NSEC)
 				stat->ctime.tv_nsec = entry->info.spoofed_ctime_tv_nsec;
-			if (entry->info.flags & KSTAT_SPOOF_BLKSIZE)
+			if (entry->flags & KSTAT_SPOOF_BLKSIZE)
 				stat->blksize = entry->info.spoofed_blksize;
-			if (entry->info.flags & KSTAT_SPOOF_BLOCKS)
+			if (entry->flags & KSTAT_SPOOF_BLOCKS)
 				stat->blocks = entry->info.spoofed_blocks;
 			rcu_read_unlock();
 			return;
@@ -1633,6 +1650,18 @@ static void susfs_run_extra_works(struct work_struct *work) {
 
 /* susfs_init */
 void susfs_init(void) {\
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+	BUILD_BUG_ON(sizeof(struct st_susfs_sus_path) != 272);
+	BUILD_BUG_ON(offsetof(struct st_susfs_sus_path, err) != 268);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	BUILD_BUG_ON(sizeof(struct st_susfs_sus_kstat) != 376);
+	BUILD_BUG_ON(offsetof(struct st_susfs_sus_kstat, err) != 368);
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT_REDIRECT
+	BUILD_BUG_ON(sizeof(struct st_susfs_sus_kstat_redirect) != 616);
+	BUILD_BUG_ON(offsetof(struct st_susfs_sus_kstat_redirect, err) != 608);
+#endif
+#endif
 	SUSFS_LOGI("Initializing susfs_extra_works\n");
 	INIT_WORK(&susfs_extra_works, susfs_run_extra_works);
 	SUSFS_LOGI("susfs is initialized! version: " SUSFS_VERSION " \n");
