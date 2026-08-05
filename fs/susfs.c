@@ -1649,7 +1649,7 @@ static void susfs_run_extra_works(struct work_struct *work) {
 }
 
 /* susfs_init */
-void susfs_init(void) {\
+void susfs_init(void) {
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 	BUILD_BUG_ON(sizeof(struct st_susfs_sus_path) != 272);
 	BUILD_BUG_ON(offsetof(struct st_susfs_sus_path, err) != 268);
