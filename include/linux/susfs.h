@@ -9,7 +9,7 @@
 #include <linux/susfs_def.h>
 #include <linux/statfs.h>
 
-#define SUSFS_VERSION "v2.1.0"
+#define SUSFS_VERSION "v2.0.0"
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
 #define SUSFS_VARIANT "NON-GKI"
 #else
@@ -39,7 +39,9 @@ enum UID_SCHEME {
 /* sus_path */
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
 struct st_susfs_sus_path {
+	unsigned long                           target_ino;
 	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	unsigned int                            i_uid;
 	int                                     err;
 };
 
@@ -47,6 +49,13 @@ struct st_susfs_sus_path_list {
 	struct list_head                        list;
 	struct st_susfs_sus_path                info;
 	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+};
+
+struct st_external_dir {
+	char                                    target_pathname[SUSFS_MAX_LEN_PATHNAME];
+	bool                                    is_inited;
+	int                                     cmd;
+	int                                     err;
 };
 #endif
 
@@ -72,6 +81,12 @@ struct st_susfs_hide_sus_mnts_for_non_su_procs {
 #define KSTAT_SPOOF_CTIME_TV_NSEC (1 << 9)
 #define KSTAT_SPOOF_BLOCKS (1 << 10)
 #define KSTAT_SPOOF_BLKSIZE (1 << 11)
+#define KSTAT_SPOOF_ALL (KSTAT_SPOOF_INO | KSTAT_SPOOF_DEV | \
+			 KSTAT_SPOOF_NLINK | KSTAT_SPOOF_SIZE | \
+			 KSTAT_SPOOF_ATIME_TV_SEC | KSTAT_SPOOF_ATIME_TV_NSEC | \
+			 KSTAT_SPOOF_MTIME_TV_SEC | KSTAT_SPOOF_MTIME_TV_NSEC | \
+			 KSTAT_SPOOF_CTIME_TV_SEC | KSTAT_SPOOF_CTIME_TV_NSEC | \
+			 KSTAT_SPOOF_BLOCKS | KSTAT_SPOOF_BLKSIZE)
 
 struct st_susfs_sus_kstat {
 	int                                     is_statically;
@@ -82,14 +97,13 @@ struct st_susfs_sus_kstat {
 	unsigned int                            spoofed_nlink;
 	long long                               spoofed_size;
 	long                                    spoofed_atime_tv_sec;
-	unsigned long                           spoofed_atime_tv_nsec;
 	long                                    spoofed_mtime_tv_sec;
-	unsigned long                           spoofed_mtime_tv_nsec;
 	long                                    spoofed_ctime_tv_sec;
-	unsigned long                           spoofed_ctime_tv_nsec;
-	long long                               spoofed_blocks;
-	long                                    spoofed_blksize;
-	int                                     flags;
+	long                                    spoofed_atime_tv_nsec;
+	long                                    spoofed_mtime_tv_nsec;
+	long                                    spoofed_ctime_tv_nsec;
+	unsigned long                           spoofed_blksize;
+	unsigned long long                      spoofed_blocks;
 	int                                     err;
 };
 
@@ -97,6 +111,7 @@ struct st_susfs_sus_kstat_hlist {
 	unsigned long                           target_ino;
 	unsigned long                           target_dev;
 	bool                                    is_fuse;
+	unsigned int                            flags;
 	struct st_susfs_sus_kstat               info;
 	struct hlist_node                       node;
 };
@@ -111,11 +126,11 @@ struct st_susfs_sus_kstat_redirect {
 	long                                    spoofed_atime_tv_sec;
 	long                                    spoofed_mtime_tv_sec;
 	long                                    spoofed_ctime_tv_sec;
-	unsigned long                           spoofed_atime_tv_nsec;
-	unsigned long                           spoofed_mtime_tv_nsec;
-	unsigned long                           spoofed_ctime_tv_nsec;
-	long                                    spoofed_blksize;
-	long long                               spoofed_blocks;
+	long                                    spoofed_atime_tv_nsec;
+	long                                    spoofed_mtime_tv_nsec;
+	long                                    spoofed_ctime_tv_nsec;
+	unsigned long                           spoofed_blksize;
+	unsigned long long                      spoofed_blocks;
 	int                                     err;
 };
 #endif
@@ -204,6 +219,7 @@ struct st_susfs_version {
 /***********************/
 /* sus_path */
 #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+void susfs_set_i_state_on_external_dir(void __user **user_info);
 void susfs_add_sus_path(void __user **user_info);
 void susfs_add_sus_path_loop(void __user **user_info);
 void susfs_run_sus_path_loop(void);
