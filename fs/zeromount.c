@@ -362,8 +362,14 @@ char *zeromount_get_static_vpath(struct inode *inode)
 	unsigned long key;
 	char *copy = NULL;
 
-	if (unlikely(!inode || !inode->i_sb))
+	if (unlikely(!inode || !inode->i_sb) || zeromount_should_skip())
 		return NULL;
+	if (zeromount_is_uid_blocked(current_uid().val))
+		return NULL;
+#ifdef CONFIG_KSU_SUSFS
+	if (susfs_is_current_proc_umounted())
+		return NULL;
+#endif
 
 	key = inode->i_ino ^ inode->i_sb->s_dev;
 
